@@ -792,7 +792,7 @@ function perfTick(now){PERF.fr++;if(now-PERF.t>=1000){PERF.fps=PERF.fr;PERF.fr=0
 function perfSheet(){const fx=S.slots.reduce((a,s)=>a+s.fx.filter(f=>f.on).length,0),hv=S.slots.reduce((a,s)=>a+s.fx.filter(f=>f.on&&(f.t==='reverb'||f.t==='gate'||f.t==='half')).length,0),vo=Object.values(voices).reduce((a,v)=>a+v.length,0),lat=ctx?Math.round(((ctx.baseLatency||0)+(ctx.outputLatency||0))*1000):0;
   openSheet(`<h2>Leistung</h2><p>Starte dein Projekt, spiele etwas und schau hier nach. Aussetzer sollten bei 0 bleiben.</p>
   ${[['Aussetzer im Timing',PERF.late],['Bilder pro Sekunde',PERF.fps],['Stimmen gerade',vo],['Aktive Effekte',fx],['Davon schwer',hv],['Kanäle',S.tracks.length],['Audio-Verzögerung',lat+' ms']].map(r=>`<div class="stp" style="grid-template-columns:1fr auto"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}
-  <div class="row"><button class="act alt" id="pfR">Zähler zurücksetzen</button><button class="act" id="sC">Fertig</button></div>`);$('#pfR').onclick=()=>{PERF.late=0;perfSheet()};$('#sC').onclick=closeSheet}
+  <p style="margin-top:9px">Audio-Puffer</p><div class="segRow" id="pfB">${[['0','Schnell'],['1','Mittel'],['2','Stabil']].map(o=>`<button class="act ${(()=>{let v='1';try{v=localStorage.getItem('tekk-buf')??'1'}catch(e){}return v})()===o[0]?'sel':'alt'}" data-v="${o[0]}">${o[1]}</button>`).join('')}</div><p>Bei Knacksen: Stabil. Pads reagieren dann etwas später. Die App startet zum Umstellen neu.</p><div class="row"><button class="act alt" id="pfR">Zähler zurücksetzen</button><button class="act" id="sC">Fertig</button></div>`);$('#pfR').onclick=()=>{PERF.late=0;perfSheet()};$$('#pfB button').forEach(b=>b.onclick=async()=>{try{localStorage.setItem('tekk-buf',b.dataset.v)}catch(e){}await idbSet('state',JSON.stringify(S));location.reload()});$('#sC').onclick=closeSheet}
 
 
 
@@ -824,7 +824,7 @@ const tr=id=>S.tracks.find(t=>t.id===id),pat=()=>S.patterns[S.cur],patLen=p=>p.b
 const visTracks=()=>groupF?S.tracks.filter(t=>t.group===groupF):S.tracks;
 
 /* ---------- Audio-Grundgerüst ---------- */
-let LE={st:3,fb:.48},echoFb;
+let LE={st:3,fb:.48},echoFb,outAn;
 let ctx,lp,hp,drv,dry,wet,comp,echoIn,echoDl,live,workletOK=false;
 let builtin={},buffers={},tBus={},voices={},slotN=[];
 const stepDur=()=>60/S.bpm/4;
@@ -852,13 +852,14 @@ O[0][n]=ol;if(O[1])O[1][n]=or;this.w=(w+1)%this.L}return true}}
 registerProcessor('tekk-time',TF)`;
 async function initAudio(){
   if(ctx)return;
-  ctx=new(window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
+  let bufV=1;try{bufV=+(localStorage.getItem('tekk-buf')??1)}catch(e){}
+  ctx=new(window.AudioContext||window.webkitAudioContext)({latencyHint:[ 'interactive',.05,.12][bufV]||.05});
   try{await ctx.audioWorklet.addModule('data:text/javascript;base64,'+btoa(WORKLET));workletOK=true}catch(e){workletOK=false}
   const bq=t=>{const f=ctx.createBiquadFilter();f.type=t;return f};
   lp=bq('lowpass');hp=bq('highpass');lp.frequency.value=20000;hp.frequency.value=20;lp.Q.value=hp.Q.value=1.4;
   live=ctx.createGain();dry=ctx.createGain();wet=ctx.createGain();drv=shaper(ctx,4);drv.oversample='2x';
   comp=ctx.createDynamicsCompressor();comp.threshold.value=-5;comp.ratio.value=14;comp.attack.value=.002;comp.release.value=.09;
-  live.connect(lp);lp.connect(hp);hp.connect(dry);hp.connect(drv);drv.connect(wet);dry.connect(comp);wet.connect(comp);comp.connect(ctx.destination);
+  live.connect(lp);lp.connect(hp);hp.connect(dry);hp.connect(drv);drv.connect(wet);dry.connect(comp);wet.connect(comp);{const pre=ctx.createGain(),sc=ctx.createWaveShaper(),a=new Float32Array(8193);pre.gain.value=.4;for(let i=0;i<8193;i++){const x=(i/4096-1)*2.5,m=Math.abs(x);a[i]=Math.sign(x)*(m<.82?m:.82+.17*Math.tanh((m-.82)/.17))}sc.curve=a;sc.oversample='4x';outAn=ctx.createAnalyser();outAn.fftSize=2048;comp.connect(pre).connect(sc).connect(outAn);sc.connect(ctx.destination)}
   echoDl=ctx.createDelay(1.5);const fb=ctx.createGain();echoFb=fb;echoIn=ctx.createGain();echoIn.gain.value=0;fb.gain.value=LE.fb;echoDl.delayTime.value=stepDur()*LE.st;
   live.connect(echoIn);echoIn.connect(echoDl);echoDl.connect(fb);fb.connect(echoDl);echoDl.connect(lp);
   S.slots.forEach((_,i)=>makeSlot(i));S.slots.forEach((_,i)=>rebuildSlot(i));
@@ -890,6 +891,7 @@ function synthVoice(t,time,n,gate){
 }
 const holdable=t=>t.syn||t.loop;
 function sound(t,time,n=0,gate=0){
+  voiceGuard(time);
   if(t.syn&&ctx&&tBus[t.id])return synthVoice(t,time,n,gate);
   const buf=buffers[t.id]||builtin[t.src];if(!buf||!ctx||!tBus[t.id])return;
   const s=ctx.createBufferSource(),g=ctx.createGain();s.buffer=buf;s.playbackRate.value=Math.pow(2,(t.tune+n)/12);
@@ -898,8 +900,9 @@ function sound(t,time,n=0,gate=0){
   s.start(time,off);
   if(len<full){g.gain.setValueAtTime(LV,time+Math.max(.002,len-.012));g.gain.linearRampToValueAtTime(0,time+len);s.stop(time+len+.01)}
   const VL=voices[t.id]=voices[t.id]||[];VL.push({s,g});if(VL.length>12){const o=VL.shift();try{o.g.gain.setTargetAtTime(0,time,.01);o.s.stop(time+.05)}catch(e){}}
-  s.onended=()=>{voices[t.id]=(voices[t.id]||[]).filter(v=>v.s!==s)};
+  s.onended=()=>{voices[t.id]=(voices[t.id]||[]).filter(v=>v.s!==s);try{g.disconnect()}catch(e){}};
 }
+function voiceGuard(time){let tot=0,big=null;for(const k in voices){const l=voices[k].length;tot+=l;if(!big||l>voices[big].length)big=k}if(tot>40&&big){const o=voices[big].shift();try{o.g.gain.cancelScheduledValues(time);o.g.gain.setTargetAtTime(0,time,.02);o.s.stop(time+.1)}catch(e){}}}
 function trigger(t,time,n=0,gate=0){choke(t.id,time);sound(t,time,n,gate)}
 function holdVoice(t,n,pid=lastPid){trigger(t,ctx.currentTime,n,8);const u=e=>{if(e.pointerId!==pid)return;choke(t.id,ctx.currentTime,true);window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u)}
 
@@ -1477,7 +1480,7 @@ wirePiano();
   try{const j=await idbGet('theme2');if(j)TH=JSON.parse(j);await loadBg();const l=await idbGet('lib');if(l)LIB=JSON.parse(l);const lp=await idbGet('livep');if(lp)LIVEP=JSON.parse(lp);const s=await idbGet('state');if(s){const d=JSON.parse(s);if(d.patterns&&d.patterns.length)S=migrate(d)}}catch(e){}
   applyTheme();applyState();requestAnimationFrame(frame);checkUpdate(true)
 })();
-window.TEKK={get S(){return S},get ctx(){return ctx},get buffers(){return buffers},get builtin(){return builtin},get slotN(){return slotN},get workletOK(){return workletOK},get TH(){return TH},PERF,fill(){TEKK.S.slots.forEach((s,i)=>{s.fx.forEach(f=>f.p=FX[f.t].d());rebuildSlot(i)})},get voices(){return voices},get sel(){return sel},get LIB(){return LIB},GALLERY,renderPatch};
+window.TEKK={get S(){return S},get ctx(){return ctx},get buffers(){return buffers},get builtin(){return builtin},get slotN(){return slotN},get workletOK(){return workletOK},get outAn(){return outAn},get TH(){return TH},PERF,fill(){TEKK.S.slots.forEach((s,i)=>{s.fx.forEach(f=>f.p=FX[f.t].d());rebuildSlot(i)})},get voices(){return voices},get sel(){return sel},get LIB(){return LIB},GALLERY,renderPatch};
 
 </script>
 </body>
