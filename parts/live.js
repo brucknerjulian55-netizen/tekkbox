@@ -36,13 +36,17 @@ function liveDown(c){const tg=c.target,a=tg.split(':');
 function liveUp(c){const a=c.target.split(':');if(a[0]==='roll')roll=0;else if(c.target==='echo'&&ctx)echoIn.gain.setTargetAtTime(0,ctx.currentTime,.02);else if(a[0]==='hit'&&c.hold&&ctx)choke(+a[1],ctx.currentTime)}
 function liveActive(c){const a=c.target.split(':');if(a[0]==='mute'){const t=tr(+a[1]);return t&&t.mute}if(a[0]==='pat')return S.cur===+a[1];if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];return f&&f.on}return false}
 function liveLabel(c){return c.label||(c.type==='xy'?targetName('val',c.tx)+' / '+targetName('val',c.ty):targetName(kindOf(c),c.target))}
+const BLK={pads:{t:'Pads',w:96,h:48,n:['#pads','#mode']},steps:{t:'Schritte',w:96,h:18,n:['#steps']},fx:{t:'Live-FX',w:96,h:24,n:['.faders','.holds']}};
+function parkBlocks(){const h=$('#pv');Object.values(BLK).forEach(B=>B.n.forEach(s=>h.append($(s))))}
+function addBlock(k){if(S.live.some(c=>c.block===k))return toast(BLK[k].t+' ist schon auf der Fläche.');const c=lv('block',2,2,BLK[k].w,BLK[k].h,'','#6a2ff0');c.block=k;S.live.push(c);drawLive();save()}
 function drawLive(){
-  if(view!=='lv')return;const b=$('#liveArea');b.innerHTML='';b.classList.toggle('edit',liveEdit);$('#liveEditBtn').classList.toggle('on',liveEdit);$('#liveEditBtn').textContent=liveEdit?'Fertig':'Bearbeiten';
+  parkBlocks();if(view!=='lv')return;const b=$('#liveArea');b.innerHTML='';b.classList.toggle('edit',liveEdit);$('#liveEditBtn').classList.toggle('on',liveEdit);$('#liveEditBtn').textContent=liveEdit?'Fertig':'Bearbeiten';
   $$('.liveAdd').forEach(e=>e.style.display=liveEdit?'':'none');
-  if(!S.live.length){const m=el('div','liveEmpty');m.innerHTML=liveEdit?'<b>Leg los</b><span>Füge oben einen Knopf, Slider, Knob oder XY-Kasten hinzu.</span>':'<b>Dein Instrument</b><span>Tippe auf Bearbeiten und baue dir dein eigenes Live-Setup.</span>';b.append(m)}
+  if(!S.live.length){const m=el('div','liveEmpty');m.innerHTML=liveEdit?'<b>Leg los</b><span>Füge oben dein erstes Element hinzu. Du kannst die Leiste zur Seite wischen.</span>':'<b>Dein Instrument</b><span>Tippe auf Bearbeiten und hol dir Pads, Schritte, FX, Knöpfe, Slider, Knobs oder XY-Kästen dazu. Alles spielt das, was im Rack steht.</span>';b.append(m)}
   S.live.forEach(c=>{Object.keys(LOOK).forEach(k=>{if(c[k]===undefined)c[k]=LOOK[k]});
     const e=el('div',`lc ${c.type} sh-${c.shape} lk-${c.look}`+(liveActive(c)?' act':''));Object.assign(e.style,{left:c.x+'%',top:c.y+'%',width:c.w+'%',height:c.h+'%',fontSize:c.fs+'px'});e.style.setProperty('--c',c.color);e.style.setProperty('--g',c.glow/100);if(c.textC)e.style.color=c.textC;
     const vert=c.dir==='v'||(c.dir==='auto'&&c.h*b.clientHeight>c.w*b.clientWidth);
+    if(c.type==='block'){BLK[c.block].n.forEach(s=>e.append($(s)));if(liveEdit)e.append(el('b','lcR'));wireLive(e,c);b.append(e);return}
     if(c.type==='xy'){const H=el('i','lcH'),V=el('i','lcV'),D=el('i','lcD');e.append(H,V,D);e._show=()=>{const x=rngGet(c,c.tx)*100,y=(1-rngGet(c,c.ty))*100;D.style.left=V.style.left=x+'%';D.style.top=H.style.top=y+'%'}}
     else if(c.type==='slider'){const f=el('i','lcF');if(vert){e.dataset.v=1}e.append(f);e._show=()=>{f.style[vert?'height':'width']=rngGet(c,c.target)*100+'%'}}
     else if(c.type==='knob'){const k=el('i','lcK');e.append(k);e._show=()=>k.style.setProperty('--v',rngGet(c,c.target))}
@@ -55,7 +59,7 @@ function wireLive(e,c){
   const pad=ev=>{const q=e.getBoundingClientRect();rngSet(c,c.tx,(ev.clientX-q.left)/q.width);rngSet(c,c.ty,1-(ev.clientY-q.top)/q.height);e._show()};
   const slide=ev=>{const q=e.getBoundingClientRect();rngSet(c,c.target,e.dataset.v?1-(ev.clientY-q.top)/q.height:(ev.clientX-q.left)/q.width);e._show()};
   const knob=ev=>{rngSet(c,c.target,kv+(sy-ev.clientY)/170);e._show()};
-  e.addEventListener('pointerdown',ev=>{ev.preventDefault();resume();e.setPointerCapture(ev.pointerId);sx=ev.clientX;sy=ev.clientY;
+  e.addEventListener('pointerdown',ev=>{if(c.type==='block'&&!liveEdit)return;ev.preventDefault();resume();e.setPointerCapture(ev.pointerId);sx=ev.clientX;sy=ev.clientY;
     if(liveEdit){mode=ev.target.classList.contains('lcR')?'size':'move';ox=c.x;oy=c.y;ow=c.w;oh=c.h;moved=false;return}
     if(!ctx)return;
     if(c.type==='btn'){e.classList.add('down');liveDown(c);return}
@@ -76,6 +80,7 @@ function wireLive(e,c){
 }
 const seg=(id,opts,val)=>`<div class="segRow" id="${id}">${opts.map(o=>`<button class="act ${o[0]===val?'sel':'alt'}" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`;
 function liveSheet(c){
+  if(c.type==='block'){openSheet(`<h2>${BLK[c.block].t}</h2><p>Spielt das, was im Rack steht. Änderungen hier gelten überall.</p><label><span>Breite: <span id="vw">${Math.round(c.w)}</span> %</span><input id="lW" type="range" min="20" max="100" step="2" value="${c.w}" data-def="${BLK[c.block].w}"></label><label><span>Höhe: <span id="vh">${Math.round(c.h)}</span> %</span><input id="lHt" type="range" min="8" max="100" step="2" value="${c.h}" data-def="${BLK[c.block].h}"></label><div class="row"><button class="act alt" id="lD">Entfernen</button><button class="act" id="sC">Fertig</button></div>`);$('#lW').oninput=e=>{c.w=+e.target.value;$('#vw').textContent=c.w;drawLive();save()};$('#lHt').oninput=e=>{c.h=+e.target.value;$('#vh').textContent=c.h;drawLive();save()};$('#lD').onclick=()=>{S.live=S.live.filter(x=>x!==c);drawLive();save();closeSheet()};$('#sC').onclick=closeSheet;return}
   const kind=kindOf(c),isHit=c.target&&c.target.startsWith('hit:'),opts=sel=>liveTargets(kind==='btn'?'btn':'val').map(o=>`<option value="${o[0]}"${o[0]===sel?' selected':''}>${esc(o[1])}</option>`).join('');
   openSheet(`<h2>${{btn:'Knopf',slider:'Slider',knob:'Knob',xy:'XY-Kasten'}[c.type]}</h2>
   ${c.type==='btn'?`<div class="row"><button class="act full" id="lS">Eigenen Sound auf diesen Knopf laden</button></div>`:''}
@@ -84,14 +89,14 @@ function liveSheet(c){
   ${c.type==='btn'&&isHit?`<p>Beim Loslassen</p>${seg('lH',[[0,'Sound läuft weiter'],[1,'Sound stoppt']],c.hold?1:0)}`:''}
   ${c.type!=='btn'?`<p>Beim Loslassen</p>${seg('lSp',[['auto','Automatisch'],[1,'Zurückspringen'],[0,'Stehen bleiben']],c.spring===null?'auto':c.spring?1:0)}`:''}
   ${c.type==='slider'?`<p>Richtung</p>${seg('lDir',[['auto','Automatisch'],['h','Waagerecht'],['v','Senkrecht']],c.dir)}`:''}
-  ${c.type!=='btn'?`<label><span>Bereich von: <span id="vlo">${c.lo}</span> %</span><input id="llo" type="range" min="0" max="100" value="${c.lo}"></label><label><span>Bereich bis: <span id="vhi">${c.hi}</span> %</span><input id="lhi" type="range" min="0" max="100" value="${c.hi}"></label>`:''}
+  ${c.type!=='btn'?`<label><span>Bereich von: <span id="vlo">${c.lo}</span> %</span><input id="llo" type="range" min="0" max="100" value="${c.lo}" data-def="0"></label><label><span>Bereich bis: <span id="vhi">${c.hi}</span> %</span><input id="lhi" type="range" min="0" max="100" value="${c.hi}" data-def="100"></label>`:''}
   <h3>Aussehen</h3>
   <p>Form</p>${seg('lSh',[['eck','Eckig'],['schraeg','Schräg'],['rund','Rund'],['hex','Sechseck']],c.shape)}
   <p>Stil</p>${seg('lLk',[['neon','Neon'],['voll','Voll'],['umriss','Umriss'],['glas','Glas']],c.look)}
   <div class="colorRow"><span>Farbe</span><input id="lC" type="color" value="${c.color}"></div>
   <div class="colorRow"><span>Schriftfarbe</span><input id="lTc" type="color" value="${c.textC||'#ffffff'}"></div>
-  <label><span>Leuchten: <span id="vgl">${c.glow}</span> %</span><input id="lG" type="range" min="0" max="100" value="${c.glow}"></label>
-  <label><span>Schriftgröße: <span id="vfs">${c.fs}</span></span><input id="lF" type="range" min="10" max="34" value="${c.fs}"></label>
+  <label><span>Leuchten: <span id="vgl">${c.glow}</span> %</span><input id="lG" type="range" min="0" max="100" value="${c.glow}" data-def="60"></label>
+  <label><span>Schriftgröße: <span id="vfs">${c.fs}</span></span><input id="lF" type="range" min="10" max="34" value="${c.fs}" data-def="15"></label>
   <label><span>Breite: <span id="vw">${Math.round(c.w)}</span> %</span><input id="lW" type="range" min="8" max="100" step="2" value="${c.w}"></label>
   <label><span>Höhe: <span id="vh">${Math.round(c.h)}</span> %</span><input id="lHt" type="range" min="6" max="100" step="2" value="${c.h}"></label>
   <div class="row"><button class="act alt" id="lTx">${c.showL?'Text ausblenden':'Text einblenden'}</button><button class="act alt" id="lCp">Duplizieren</button><button class="act alt" id="lR">Standard</button><button class="act alt" id="lD">Löschen</button><button class="act full" id="sC">Fertig</button></div>`);
@@ -109,4 +114,37 @@ function liveSheet(c){
 }
 function addLive(type){const C={btn:['#ff2a6d',38,40,24,16],slider:['#22e6ff',20,44,60,12],knob:['#b14dff',38,38,24,16],xy:['#ff2a6d',20,28,60,34]}[type],c=lv(type,C[1],C[2],C[3],C[4],type==='btn'?'hit:'+sel:type==='xy'?'':'filter',C[0]);if(type==='xy'){c.tx='echot';c.ty='echof'}S.live.push(c);drawLive();save();if(type==='btn')liveSheet(c)}
 function liveClearSheet(){openSheet(`<h2>Live-Fläche leeren?</h2><p>Alle Knöpfe, Slider, Knobs und XY-Kästen verschwinden. Deine Sounds bleiben.</p><div class="row"><button class="act" id="cY">Alles entfernen</button><button class="act alt" id="sC">Abbrechen</button></div>`);$('#cY').onclick=()=>{S.live=[];drawLive();save();closeSheet()};$('#sC').onclick=closeSheet}
+
+/* ---------- Mix-Check ---------- */
+const BANDS=[['Sub',20,60,8,35],['Bass',60,250,25,55],['Tiefe Mitten',250,1000,6,22],['Mitten',1000,4000,4,20],['Höhen',4000,20000,1,14]];
+const dB=x=>x>0?20*Math.log10(x):-99;
+async function mixCheck(){
+  await resume();const was=playing;if(!was)await togglePlay();
+  openSheet(`<h2>Mix-Check läuft</h2><p>Die App hört jetzt 8 Sekunden lang zu. Lass es einfach laufen.</p><canvas class="ed" id="mcBar" height="10"></canvas>`);
+  const N=S.slots.map(()=>({pk:0,e:0,n:0})),bins=new Float32Array(slotN[0].an.frequencyBinCount),pow=BANDS.map(()=>0),a=new Float32Array(2048),T0=performance.now(),LEN=8000,ny=ctx.sampleRate/2;
+  await new Promise(done=>{const tick=()=>{const t=performance.now()-T0;
+      S.slots.forEach((s,i)=>{const R=N[i];slotN[i].an.getFloatTimeDomainData(a);let e=0;for(const x of a){const v=Math.abs(x);if(v>R.pk)R.pk=v;e+=x*x}R.e+=e/a.length;R.n++});
+      slotN[0].an.getFloatFrequencyData(bins);bins.forEach((d,j)=>{if(!isFinite(d))return;const f=j/bins.length*ny,p=Math.pow(10,d/10);BANDS.forEach((b,k)=>{if(f>=b[1]&&f<b[2])pow[k]+=p})});
+      const c=$('#mcBar');if(c&&c.clientWidth){const{g,w}=sizeCanvas(c,10);g.fillStyle=prCol()('--hot');g.fillRect(0,0,w*t/LEN,10)}
+      if(t<LEN)setTimeout(tick,60);else done()};tick()});
+  if(!was)await togglePlay();mixReport(N,pow);
+}
+function mixReport(N,pow){
+  const M=N[0],rms=dB(Math.sqrt(M.e/Math.max(1,M.n))),pk=dB(M.pk),tot=pow.reduce((a,b)=>a+b,0)||1,rows=[],row=(st,t,x)=>rows.push([st,t,x]);
+  if(M.pk<.002){openSheet(`<h2>Mix-Check</h2><p>Es war nichts zu hören. Setze Noten ins Pattern und prüfe, ob Kanäle stumm sind.</p><div class="row"><button class="act full" id="sC">Fertig</button></div>`);$('#sC').onclick=closeSheet;return}
+  if(pk>0)row('bad','Master übersteuert',`Spitzen bei +${pk.toFixed(1)} dB. Zieh die Slots runter oder leg einen Limiter auf den Master.`);else if(pk>-1)row('warn','Master sehr knapp',`Spitze bei ${pk.toFixed(1)} dB. Lass etwas Luft nach oben.`);else row('ok','Spitzenpegel passt',`Spitze bei ${pk.toFixed(1)} dB.`);
+  if(rms<-20)row('warn','Mix ist leise',`Durchschnitt ${rms.toFixed(1)} dB. Für Hardtekk darf es lauter sein.`);else if(rms>-6)row('bad','Mix ist sehr dicht',`Durchschnitt ${rms.toFixed(1)} dB. Das kann platt klingen und verzerren.`);else row('ok','Lautheit passt',`Durchschnitt ${rms.toFixed(1)} dB.`);
+  const cf=pk-rms;if(cf<5)row('warn','Wenig Dynamik',`Nur ${cf.toFixed(1)} dB zwischen Spitze und Durchschnitt. Die Kick verliert so an Punch.`);
+  const bars=BANDS.map((b,k)=>{const v=pow[k]/tot*100,rv=Math.round(v),st=rv<b[3]?'low':rv>b[4]?'high':'ok';if(st==='high')row('warn',b[0]+' zu stark',`${v.toFixed(0)} % der Energie, gut wären bis ${b[4]} %. Senke den Bereich mit dem EQ oder nimm den Sound leiser.`);if(st==='low')row('warn',b[0]+' zu schwach',`${v.toFixed(0)} % der Energie, gut wären ab ${b[3]} %.`);return{n:b[0],v,st,lo:b[3],hi:b[4]}});
+  const lvl=[];S.slots.forEach((s,i)=>{if(!i||N[i].pk<.002)return;const r=dB(Math.sqrt(N[i].e/Math.max(1,N[i].n))),p=dB(N[i].pk);lvl.push({n:s.name,r,p});if(p>0)row('bad',s.name+' übersteuert',`Spitze bei +${p.toFixed(1)} dB. Zieh den Slot runter.`)});
+  const kk=S.tracks.find(t=>t.src==='Kick'&&!t.mute),bs=S.tracks.find(t=>t.src==='Bass'&&!t.mute);
+  if(kk&&bs&&kk.slot!==bs.slot&&N[kk.slot].pk>.002&&N[bs.slot].pk>.002){const d=dB(Math.sqrt(N[kk.slot].e/N[kk.slot].n))-dB(Math.sqrt(N[bs.slot].e/N[bs.slot].n));if(d<-6)row('warn','Kick geht unter',`Die Kick ist ${(-d).toFixed(1)} dB leiser als der Bass. Bei Hardtekk sollte sie führen.`)}
+  const col={ok:'var(--ice)',warn:'var(--lit)',bad:'var(--rec)'},mx=Math.max(...lvl.map(l=>l.r),-60);
+  openSheet(`<h2>Mix-Check</h2><p>Die Werte sind Richtwerte für Hardtekk. Am Ende entscheiden deine Ohren, vergleiche auch mit Tracks, die du gut findest.</p>
+  ${rows.map(r=>`<div class="mcR" style="--s:${col[r[0]]}"><b>${esc(r[1])}</b><span>${esc(r[2])}</span></div>`).join('')}
+  <h3>Frequenzen</h3>${bars.map(b=>`<div class="mcB"><span>${b.n}</span><i><u style="left:${Math.min(100,b.lo*1.4)}%;width:${Math.min(100,(b.hi-b.lo)*1.4)}%"></u><em style="width:${Math.min(100,b.v*1.4)}%;background:${b.st==='ok'?'var(--ice)':'var(--lit)'}"></em></i><b>${b.v.toFixed(0)} %</b></div>`).join('')}
+  ${lvl.length?`<h3>Slots</h3>${lvl.map(l=>`<div class="mcB"><span>${esc(l.n)}</span><i><em style="width:${Math.max(3,100+(l.r-mx)*3)}%;background:var(--hot)"></em></i><b>${l.r.toFixed(1)} dB</b></div>`).join('')}`:''}
+  <div class="row" style="margin-top:9px"><button class="act alt" id="mcA">Nochmal prüfen</button><button class="act" id="sC">Fertig</button></div>`);
+  $('#mcA').onclick=mixCheck;$('#sC').onclick=closeSheet;
+}
 

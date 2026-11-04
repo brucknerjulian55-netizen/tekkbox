@@ -31,7 +31,7 @@ function migrate(d){            /* Projekte aus Version 1 */
   n.patterns=d.patterns.map((p,i)=>{const q=newPat('Pattern '+'ABCDEFGH'[i]);p.forEach((a,t)=>a.forEach((v,s)=>{if(v!==null)(q.n[t]=q.n[t]||[]).push({s,n:v,l:1})}));return q});
   return n;
 }
-let S=defaultState(),sel=0,mode='play',note=0,view='pv',groupF=null;
+let S=defaultState(),sel=0,mode='play',note=0,view='lv',groupF=null;
 let playing=false,recOn=false,queued=null,pos=0,nextT=0,uiQ=[],lastStep={t:0,s:0},skip={},roll=0,loadTrack=0,timer=null,phPos=-1;
 const tr=id=>S.tracks.find(t=>t.id===id),pat=()=>S.patterns[S.cur],patLen=p=>p.bars*BAR;
 const visTracks=()=>groupF?S.tracks.filter(t=>t.group===groupF):S.tracks;
@@ -111,6 +111,7 @@ const FX={
  filter:{name:'Filter',d:()=>({type:'lowpass',f:4000,q:1}),s:[['f','Frequenz (Hz)',40,18000,10],['q','Resonanz',.3,16,.1]],o:['type','Art',[['lowpass','Tiefpass'],['highpass','Hochpass'],['bandpass','Bandpass']]]},
  delay:{name:'Delay',d:()=>({steps:3,fb:40,mix:30}),s:[['steps','Zeit (Schritte)',1,12,1],['fb','Rückkopplung',0,90,1],['mix','Anteil',0,100,1]]},
  reverb:{name:'Hall',d:()=>({size:1.6,mix:20}),s:[['size','Größe (s)',.2,5,.1],['mix','Anteil',0,100,1]]},
+ shape:{name:'Waveshaper',d:()=>({y:[-1,-.75,-.5,-.25,0,.25,.5,.75,1],sym:1,pre:0,post:0,mix:100}),s:[['pre','Eingang (dB)',-12,24,1],['post','Ausgang (dB)',-24,12,1],['mix','Anteil',0,100,1]]},
  gate:{name:'Beat-Gate',d:()=>({vol:Array(16).fill(1),time:Array(16).fill(0),mix:100}),s:[['mix','Anteil',0,100,1]]},
  half:{name:'Halftime',d:()=>({cyc:16,keep:1,mix:100}),s:[['mix','Anteil',0,100,1]]}
 };
@@ -124,6 +125,7 @@ const B=(t,f,g,q=1)=>({t,f,g,q}),EQP={
  Melodie:[B('highpass',150,0,.7),B('peaking',350,-2,1.4),B('peaking',3000,3,1),B('highshelf',10000,1.5,1)],
  Master:[B('highpass',25,0,.7),B('peaking',60,1,1),B('peaking',300,-1,1),B('highshelf',11000,1.5,1)],
  Neutral:[B('lowshelf',70,0),B('peaking',400,0),B('peaking',2500,0),B('highshelf',9000,0)]},EQT=[['highpass','Hochpass'],['lowshelf','Low-Shelf'],['peaking','Bell'],['highshelf','High-Shelf'],['lowpass','Tiefpass']];
+const WSP={Linear:x=>x,Weich:x=>Math.tanh(x*2.2)/Math.tanh(2.2),Hart:x=>Math.max(-.55,Math.min(.55,x*1.6))/.55,Faltung:x=>Math.sin(x*Math.PI*1.5),Stufen:x=>Math.round(x*4)/4,Kurve:x=>Math.sign(x)*x*x};
 const GATEP={'Aus':[()=>1,()=>0],'Halftime':[()=>1,i=>i/2],'Gate 1/8':[i=>i%4<2?1:0,()=>0],'Gate 1/16':[i=>i%2?0:1,()=>0],'Pumpen':[i=>[.15,.5,.85,1][i%4],()=>0],'Stutter':[()=>1,i=>i%2],'Tape-Stop':[i=>1-i/18,i=>i*i/30],'Trance':[i=>[1,0,1,1,0,1,1,0,1,0,1,1,0,1,0,1][i],()=>0]};
 function makeFx(f){
   const P=f.p,i=ctx.createGain(),o=ctx.createGain(),n={in:i,out:o,set(){}},mixPair=()=>{const d=ctx.createGain(),w=ctx.createGain();i.connect(d).connect(o);return{d,w,mix(v){w.gain.value=v;d.gain.value=1-v}}};
@@ -133,6 +135,8 @@ function makeFx(f){
     n.set=()=>{const k=1+P.amt/4,a=new Float32Array(2048);for(let j=0;j<2048;j++){const x=j/1024-1;a[j]=Math.tanh(x*k)}w.curve=a;post.gain.value=1/Math.sqrt(1+P.amt/30);m.mix(P.mix/100)}}
   else if(f.t==='comp'||f.t==='limit'){const c=ctx.createDynamicsCompressor(),g=ctx.createGain();i.connect(c).connect(g).connect(o);n.c=c;
     n.set=()=>{c.threshold.value=P.thr;if(f.t==='limit'){c.ratio.value=20;c.attack.value=.001;c.release.value=.06;c.knee.value=0;g.gain.value=Math.pow(10,P.gain/20)}else{c.ratio.value=P.ratio;c.attack.value=P.att/1000;c.release.value=P.rel/1000;c.knee.value=6}}}
+  else if(f.t==='shape'){const m=mixPair(),pre=ctx.createGain(),w=ctx.createWaveShaper(),post=ctx.createGain();w.oversample='2x';i.connect(pre).connect(w).connect(post).connect(m.w).connect(o);
+    n.set=()=>{const a=new Float32Array(2049);for(let j=0;j<2049;j++){const x=j/2048*8,k=Math.min(7,Math.floor(x)),t=x-k;a[j]=P.y[k]+(P.y[k+1]-P.y[k])*t}w.curve=a;pre.gain.value=Math.pow(10,P.pre/20);post.gain.value=Math.pow(10,P.post/20);m.mix(P.mix/100)}}
   else if(f.t==='filter'){const b=ctx.createBiquadFilter();i.connect(b).connect(o);n.set=()=>{b.type=P.type;b.frequency.value=P.f;b.Q.value=P.q}}
   else if(f.t==='delay'){const m=mixPair(),dl=ctx.createDelay(2),fb=ctx.createGain();i.connect(dl);dl.connect(fb).connect(dl);dl.connect(m.w).connect(o);n.set=()=>{dl.delayTime.setTargetAtTime(Math.min(2,P.steps*stepDur()),ctx.currentTime,.02);fb.gain.value=P.fb/100;m.d.gain.value=1;m.w.gain.value=P.mix/100}}
   else if(f.t==='reverb'){const m=mixPair(),c=ctx.createConvolver();i.connect(c).connect(m.w).connect(o);let sz=0;
@@ -265,11 +269,11 @@ function channelSheet(){
   <label>Name<input id="cN" type="text" maxlength="20" value="${esc(t.name)}"></label>
   <div class="row"><label>Gruppe<select id="cG"><option value="">Keine</option>${S.groups.map(g=>`<option${g===t.group?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
   <label>Mixer-Slot<select id="cS">${S.slots.map((s,i)=>i?`<option value="${i}"${i===t.slot?' selected':''}>${i}: ${esc(s.name)}</option>`:'').join('')}</select></label></div>
-  <label>Lautstärke<input id="sV" type="range" min="0" max="120" value="${t.vol*100}"></label>
-  <label>Panorama<input id="cP" type="range" min="-100" max="100" value="${t.pan*100}"></label>
-  <label><span>Tonhöhe: <span id="sTv">${t.tune>0?'+':''}${t.tune}</span> Halbtöne</span><input id="sT" type="range" min="-24" max="24" value="${t.tune}"></label>
-  <label>Start<input id="cSt" type="range" min="0" max="90" value="${(t.start||0)*100}"></label>
-  <label>Länge<input id="sD" type="range" min="5" max="100" value="${t.len*100}"></label>
+  <label>Lautstärke<input id="sV" type="range" min="0" max="120" value="${t.vol*100}" data-def="85"></label>
+  <label>Panorama<input id="cP" type="range" min="-100" max="100" value="${t.pan*100}" data-def="0"></label>
+  <label><span>Tonhöhe: <span id="sTv">${t.tune>0?'+':''}${t.tune}</span> Halbtöne</span><input id="sT" type="range" min="-24" max="24" value="${t.tune}" data-def="0"></label>
+  <label>Start<input id="cSt" type="range" min="0" max="90" value="${(t.start||0)*100}" data-def="0"></label>
+  <label>Länge<input id="sD" type="range" min="5" max="100" value="${t.len*100}" data-def="100"></label>
   <div class="colorRow"><span>Farbe</span><input id="cC" type="color" value="${t.color}"></div>
   <div class="row"><button class="act alt" id="cR">Standard</button><button class="act alt" id="cD">Kanal löschen</button><button class="act full" id="sC">Fertig</button></div>`);
   $('#cP2').onclick=()=>soundPicker('Sound für '+t.name,async(b,n)=>{await assignBuf(t,b,n);channelSheet();toast(n+' geladen')},channelSheet);
@@ -368,7 +372,7 @@ function drawSong(){
 function drawMixer(){
   const b=$('#mixList');b.innerHTML='';S.slots.forEach((s,i)=>{
     const r=el('div','mx'),n=el('button','');n.style.textAlign='left';n.style.minWidth='0';n.innerHTML=`<span class="mxN" style="display:block">${i?i+': ':''}${esc(s.name)}</span><span class="mxF">${s.fx.length?s.fx.map(f=>FX[f.t].name).join(', '):'Keine Effekte'}</span>`;n.onclick=()=>slotSheet(i);
-    const fb=el('label','fader mxL'),f=el('input');f.type='range';f.min=0;f.max=125;f.value=s.vol*100;f.setAttribute('aria-label',s.name+' Lautstärke');f.oninput=()=>{s.vol=f.value/100;slotVol(i);save()};fb.append(f);
+    const fb=el('label','fader mxL'),f=el('input');f.type='range';f.min=0;f.max=125;f.value=s.vol*100;f.dataset.def=90;f.setAttribute('aria-label',s.name+' Lautstärke');f.oninput=()=>{s.vol=f.value/100;slotVol(i);save()};fb.append(f);
     const m=el('button','mxM'+(s.mute?' on':''),'M');m.setAttribute('aria-label',s.name+' stumm');m.onclick=()=>{s.mute=!s.mute;slotVol(i);drawMixer();save()};
     const t=el('div','mtr'),bar=el('i');bar.dataset.m=i;t.append(bar);r.append(n,fb,m,t);b.append(r)})
 }
@@ -394,13 +398,14 @@ const fxNode=(i,k)=>slotN[i]&&slotN[i].fxn[k]&&slotN[i].fxn[k].n;
 function fxSheet(i,k){
   const f=S.slots[i].fx[k],D=FX[f.t],P=f.p,push=()=>{const n=fxNode(i,k);if(n)n.set();save()};
   let h=`<h2>${D.name}</h2>`;
-  if(f.t==='eq')h+=`<p>Ziehe die Punkte: links, rechts für die Frequenz, hoch, runter für die Lautstärke.</p><div class="row3">${Object.keys(EQP).map(n=>`<button class="act alt" data-q="${n}">${n}</button>`).join('')}</div><canvas class="ed" id="eqC" height="220"></canvas><div id="eqI"></div><div class="row"><label><span>Punkt <span id="eqN">1</span></span><select id="eqT">${EQT.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select></label><label><span>Breite (Q): <span id="eqQv"></span></span><input id="eqQ" type="range" min=".3" max="10" step=".1"></label></div>`;
+  if(f.t==='eq')h+=`<p>Ziehe die Punkte: links, rechts für die Frequenz, hoch, runter für die Lautstärke.</p><div class="row3">${Object.keys(EQP).map(n=>`<button class="act alt" data-q="${n}">${n}</button>`).join('')}</div><canvas class="ed" id="eqC" height="220"></canvas><div id="eqI"></div><div class="row"><label><span>Punkt <span id="eqN">1</span></span><select id="eqT">${EQT.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select></label><label><span>Breite (Q): <span id="eqQv"></span></span><input id="eqQ" type="range" min=".3" max="10" step=".1" data-def="1"></label></div>`;
   if(f.t==='gate')h+=`<p>Male die Kurve über einen Takt. Obere Zeile: Lautstärke. Untere Zeile: Zeitversatz, damit wird der Sound langsamer, stottert oder stoppt.</p><canvas class="ed" id="gaC" height="240"></canvas><div class="row3">${Object.keys(GATEP).map(n=>`<button class="act alt" data-p="${n}">${n}</button>`).join('')}</div>`;
+  if(f.t==='shape')h+=`<p>Male die Kennlinie: Sie zeigt, wie das Signal umgeformt wird. Die Diagonale lässt den Sound unverändert.</p><canvas class="ed" id="wsC" height="240"></canvas><div class="row3">${Object.keys(WSP).map(n=>`<button class="act alt" data-w="${n}">${n}</button>`).join('')}</div><div class="row"><button class="act ${P.sym?'sel':'alt'}" id="wsS">Symmetrisch</button><button class="act ${P.sym?'alt':'sel'}" id="wsF">Frei</button></div>`;
   if(f.t==='delay')h+=`<p>Finger links, rechts: Zeit. Finger hoch, runter: Rückkopplung.</p><canvas class="ed" id="dlX" height="190"></canvas>`;
   if(f.t==='half')h+=`<p>Spielt die Melodie halb so schnell und springt am Ende jedes Abschnitts zurück.</p><div class="row"><button class="act ${P.keep?'':'alt'}" id="hK">Tonhöhe halten</button><button class="act ${P.keep?'alt':''}" id="hT">Oktave tiefer</button></div><label>Abschnitt<select id="hC"><option value="8"${P.cyc==8?' selected':''}>2 Beats</option><option value="16"${P.cyc==16?' selected':''}>1 Takt</option><option value="32"${P.cyc==32?' selected':''}>2 Takte</option></select></label>`;
   if((f.t==='gate'||f.t==='half')&&!workletOK)h+=`<p>Dieser Effekt läuft in diesem Browser nicht. Nimm eine aktuelle Chrome-Version.</p>`;
   if(D.o)h+=`<label>${D.o[1]}<select id="fO">${D.o[2].map(o=>`<option value="${o[0]}"${P[D.o[0]]===o[0]?' selected':''}>${o[1]}</option>`).join('')}</select></label>`;
-  (D.s||[]).forEach(s=>h+=`<label><span>${s[1]}: <span id="v_${s[0]}">${P[s[0]]}</span></span><input data-k="${s[0]}" type="range" min="${s[2]}" max="${s[3]}" step="${s[4]}" value="${P[s[0]]}"></label>`);
+  const fxDef=D.d();(D.s||[]).forEach(s=>h+=`<label><span>${s[1]}: <span id="v_${s[0]}">${P[s[0]]}</span></span><input data-k="${s[0]}" data-def="${fxDef[s[0]]}" type="range" min="${s[2]}" max="${s[3]}" step="${s[4]}" value="${P[s[0]]}"></label>`);
   h+=`<div class="row"><button class="act alt" id="fR">Standard</button><button class="act" id="fB">Zurück</button></div>`;openSheet(h);
   $('#fR').onclick=()=>{f.p=D.d();rebuildSlot(i);save();fxSheet(i,k);toast('Auf Standard zurückgesetzt')};
   $$('#sheet [data-k]').forEach(e=>e.oninput=()=>{P[e.dataset.k]=+e.value;$('#v_'+e.dataset.k).textContent=e.value;push()});
@@ -409,6 +414,7 @@ function fxSheet(i,k){
   if(f.t==='half'){$('#hK').onclick=()=>{P.keep=1;push();fxSheet(i,k)};$('#hT').onclick=()=>{P.keep=0;push();fxSheet(i,k)};$('#hC').onchange=e=>{P.cyc=+e.target.value;push()}}
   if(f.t==='gate'){$$('#sheet [data-p]').forEach(b=>b.onclick=()=>{const[v,t]=GATEP[b.dataset.p];P.vol=P.vol.map((_,j)=>v(j));P.time=P.time.map((_,j)=>t(j));push();drawGate()});gateEd(P,push)}
   if(f.t==='eq'){eqEd(i,k,P,push);$$('#sheet [data-q]').forEach(b=>b.onclick=()=>{P.b=EQP[b.dataset.q].map(x=>({...x}));push();eqPick(0)})}
+  if(f.t==='shape')wsEd(i,k,f,P,push);
   if(f.t==='delay'){const c=$('#dlX');xyCanvas(c,190,()=>[(P.steps-1)/11,P.fb/90],(x,y)=>{P.steps=Math.round(x*11)+1;P.fb=Math.round(y*90);['steps','fb'].forEach(a=>{const e=$(`[data-k="${a}"]`);e.value=P[a];$('#v_'+a).textContent=P[a]});push()})}
 }
 let edRaf=0,drawGate=()=>{},eqPick=()=>{};const edStop=()=>{cancelAnimationFrame(edRaf);edRaf=0};
@@ -417,6 +423,13 @@ function xyCanvas(c,h,get,set){
   const{g,w}=sizeCanvas(c,h),C=prCol(),draw=()=>{const[x,y]=get();g.clearRect(0,0,w,h);g.strokeStyle=C('--deep');for(let i=1;i<4;i++){g.beginPath();g.moveTo(w*i/4,0);g.lineTo(w*i/4,h);g.moveTo(0,h*i/4);g.lineTo(w,h*i/4);g.stroke()}g.strokeStyle=C('--hot');g.beginPath();g.moveTo(x*w,0);g.lineTo(x*w,h);g.moveTo(0,(1-y)*h);g.lineTo(w,(1-y)*h);g.stroke();g.fillStyle=C('--lit');g.beginPath();g.arc(x*w,(1-y)*h,13,0,7);g.fill()};draw();
   let down=false;const mv=e=>{const r=c.getBoundingClientRect();set(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height)));draw()};
   c.onpointerdown=e=>{down=true;c.setPointerCapture(e.pointerId);mv(e)};c.onpointermove=e=>down&&mv(e);c.onpointerup=c.onpointercancel=()=>down=false;
+}
+function wsEd(i,k,f,P,push){
+  const c=$('#wsC'),{g,w,h}=sizeCanvas(c,240),C=prCol(),X=j=>j/8*w,Y=v=>(1-v)/2*h,draw=()=>{g.clearRect(0,0,w,h);g.strokeStyle=C('--deep');for(let j=1;j<8;j++){g.beginPath();g.moveTo(X(j),0);g.lineTo(X(j),h);g.moveTo(0,h*j/8);g.lineTo(w,h*j/8);g.stroke()}g.strokeStyle=C('--line');g.beginPath();g.moveTo(0,h);g.lineTo(w,0);g.stroke();g.strokeStyle=C('--lit');g.lineWidth=2.5;g.beginPath();P.y.forEach((v,j)=>j?g.lineTo(X(j),Y(v)):g.moveTo(0,Y(v)));g.stroke();g.lineWidth=1;g.fillStyle=C('--hot');P.y.forEach((v,j)=>{g.beginPath();g.arc(X(j),Y(v),6,0,7);g.fill()})};draw();
+  const set=e=>{const r=c.getBoundingClientRect(),j=Math.max(0,Math.min(8,Math.round((e.clientX-r.left)/r.width*8))),v=Math.max(-1,Math.min(1,1-2*(e.clientY-r.top)/r.height));P.y[j]=Math.round(v*50)/50;if(P.sym)P.y[8-j]=-P.y[j];if(P.sym&&j===4)P.y[4]=0;const n=fxNode(i,k);if(n)n.set();draw()};
+  let down=false;c.onpointerdown=e=>{down=true;c.setPointerCapture(e.pointerId);set(e)};c.onpointermove=e=>down&&set(e);c.onpointerup=c.onpointercancel=()=>{if(down){down=false;save()}};
+  $$('#sheet [data-w]').forEach(b=>b.onclick=()=>{const F=WSP[b.dataset.w];P.y=P.y.map((_,j)=>F(j/4-1));push();draw()});
+  $('#wsS').onclick=()=>{P.sym=1;push();fxSheet(i,S.slots[i].fx.indexOf(f))};$('#wsF').onclick=()=>{P.sym=0;push();fxSheet(i,S.slots[i].fx.indexOf(f))};
 }
 function gateEd(P,push){
   const c=$('#gaC'),{g,w,h}=sizeCanvas(c,240),H=h/2,C=prCol();
@@ -517,7 +530,7 @@ function drawPlayhead(){
 let pulse=0;const FL=()=>$$('#bg .l');let flE=null,lE=null;
 function beatFx(){if(!flE){flE=$('#bg .flash');lE=FL()}if(pulse<.01)return;pulse*=.86;flE.style.opacity=pulse*.8;lE.forEach(e=>e.style.opacity=.1+pulse*.75)}
 function frame(){requestAnimationFrame(frame);meters();beatFx();if(!ctx||!playing)return;const t=ctx.currentTime-(ctx.outputLatency||0);let ch=false;
-  while(uiQ.length&&uiQ[0].t<=t){const q=uiQ.shift();if(q.redraw){drawAll();continue}phPos=q.p;ch=true;if(q.p%4===0)pulse=1;if(mode!=='note'&&view==='pv'){const pads=$('#pads').children,V=padTracks();q.hits.forEach(id=>{const i=V.findIndex(x=>x.id===id);if(i>=0)flash(pads[i])})}}
+  while(uiQ.length&&uiQ[0].t<=t){const q=uiQ.shift();if(q.redraw){drawAll();continue}phPos=q.p;ch=true;if(q.p%4===0)pulse=1;if(mode!=='note'&&view==='lv'){const pads=$('#pads').children,V=padTracks();q.hits.forEach(id=>{const i=V.findIndex(x=>x.id===id);if(i>=0)flash(pads[i])})}}
   if(ch)drawPlayhead()}
 
 /* ---------- Speichern ---------- */
@@ -551,11 +564,11 @@ async function loadSample(file){await resume();
   catch(e){toast('Diese Datei lässt sich nicht lesen. Probiere WAV oder MP3.')}}
 
 /* ---------- Verdrahtung ---------- */
-function setView(v){view=v;$$('.view').forEach(e=>e.classList.toggle('on',e.id===v));$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='rv')drawRack();if(v==='ov'){prSelect();drawPiano();prFocus()}if(v==='sv')drawSong();if(v==='mv')drawMixer();if(v==='bv')drawBuild();if(v==='lv')drawLive();drawPlayhead()}
+function setView(v){view=v;if(v!=='lv')parkBlocks();$$('.view').forEach(e=>e.classList.toggle('on',e.id===v));$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='rv')drawRack();if(v==='ov'){prSelect();drawPiano();prFocus()}if(v==='sv')drawSong();if(v==='mv')drawMixer();if(v==='bv')drawBuild();if(v==='lv')drawLive();drawPlayhead()}
 function holdBtn(e,on,off){e.addEventListener('pointerdown',async ev=>{ev.preventDefault();e.setPointerCapture&&e.setPointerCapture(ev.pointerId);await resume();e.classList.add('on');on()});['pointerup','pointercancel','lostpointercapture'].forEach(n=>e.addEventListener(n,()=>{e.classList.remove('on');off()}))}
 function bpmBtn(e,d){let h;const set=()=>{S.bpm=Math.min(260,Math.max(100,S.bpm+d));$('#bpm').textContent=S.bpm;if(ctx){echoDl.delayTime.value=stepDur()*LE.st;slotN.forEach(s=>s.fxn.forEach(f=>f.n&&f.n.set()));allTF()}save()};
   e.addEventListener('pointerdown',ev=>{ev.preventDefault();set();h=setTimeout(()=>h=setInterval(set,70),350)});['pointerup','pointercancel','pointerleave'].forEach(n=>e.addEventListener(n,()=>{clearTimeout(h);clearInterval(h)}))}
-$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;
+$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;$('#liveAddP').onclick=()=>addBlock('pads');$('#liveAddT').onclick=()=>addBlock('steps');$('#liveAddF').onclick=()=>addBlock('fx');$('#mixChk').onclick=mixCheck;
 $('#prFill').onclick=fillSheet;
 $('#rackWave').onclick=async()=>{await resume();const t=tr(sel);if(t)trigger(t,ctx.currentTime,0)};
 $('#go').onclick=async()=>{$('#hint').style.display='none';await resume()};
@@ -575,6 +588,13 @@ let filePick=null;
 $('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(filePick){const c=filePick;filePick=null;c(f)}else loadSample(f)};
 $('#imgFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;await idbSet('bgimg',await f.arrayBuffer());bgType=f.type;TH.bgOn=true;await loadBg();applyTheme();if(document.body.classList.contains('open'))themeSheet();toast('Hintergrund geladen')};
 $('#projFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)importProject(f)};
+let lpT=0,lpX=0,lpY=0;const rstE=$('#rst'),hideRst=()=>{rstE.style.display='none';rstE._r=null};
+rstE.onclick=()=>{const r=rstE._r;if(r){r.value=r.dataset.def;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}));toast('Auf Standard zurückgesetzt')}hideRst()};
+document.addEventListener('pointerdown',e=>{if(e.target===rstE)return;hideRst();const box=e.target.closest&&e.target.closest('label,.fader'),a=$('.armedBox');if(a&&a!==box)disarm();
+  const r=box&&box.querySelector('input[type=range]');clearTimeout(lpT);if(r&&r.dataset.def!==undefined){lpX=e.clientX;lpY=e.clientY;lpT=setTimeout(()=>{rstE.textContent='Auf Standard zurücksetzen';rstE._r=r;rstE.style.left=Math.max(120,Math.min(innerWidth-120,lpX))+'px';rstE.style.top=Math.max(60,lpY)+'px';rstE.style.display='block';try{navigator.vibrate&&navigator.vibrate(18)}catch(x){}},480)}},true);
+document.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-lpX,e.clientY-lpY)>12)clearTimeout(lpT)},true);
+['pointerup','pointercancel'].forEach(n=>document.addEventListener(n,()=>clearTimeout(lpT),true));
+document.addEventListener('contextmenu',e=>{if(e.target.closest&&e.target.closest('label,.fader'))e.preventDefault()},true);
 const disarm=()=>{$$('input.armed').forEach(e=>e.classList.remove('armed'));$$('.armedBox').forEach(e=>e.classList.remove('armedBox'))};
 document.addEventListener('click',e=>{const box=e.target.closest&&e.target.closest('label,.fader');const r=box&&box.querySelector('input[type=range]:not(.free)');if(r&&!r.classList.contains('armed')){disarm();r.classList.add('armed');box.classList.add('armedBox')}else if(!r)disarm()},true);
 window.addEventListener('pagehide',()=>{if(db)idbSet('state',JSON.stringify(S))});

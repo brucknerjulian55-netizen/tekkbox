@@ -86,7 +86,7 @@ function drawSynth(){
   $('#syCh').onclick=async()=>{await resume();const bf=await renderPatch(SP),t=tr(sel);if(t){await assignBuf(t,bf,spName);toast(spName+' liegt auf Kanal '+t.name)}};
   $('#sySave').onclick=saveSheet;syncSynth();resume().then(()=>renderPatch(SP)).then(x=>{spBuf=x;drawWave()});
 }
-function syncSynth(){$$('#bSynth [data-s]').forEach(e=>{e.value=SP[e.dataset.s];$('#sv_'+e.dataset.s).textContent=SP[e.dataset.s]});$('#syW1').value=SP.w1;$('#syW2').value=SP.w2;$('#syC').value=SP.chord;drawWave()}
+function syncSynth(){$$('#bSynth [data-s]').forEach(e=>{e.value=SP[e.dataset.s];e.dataset.def=spBase[e.dataset.s]??PD[e.dataset.s];$('#sv_'+e.dataset.s).textContent=SP[e.dataset.s]});$('#syW1').value=SP.w1;$('#syW2').value=SP.w2;$('#syC').value=SP.chord;drawWave()}
 function drawWave(){const c=$('#syW');if(!c||!c.clientWidth)return;const{g,w,h}=sizeCanvas(c,90),C=prCol();g.clearRect(0,0,w,h);if(!spBuf)return;const a=spBuf.getChannelData(0),st=Math.max(1,a.length/w|0);g.fillStyle=C('--lit');for(let x=0;x<w;x++){let m=0;for(let i=x*st;i<(x+1)*st&&i<a.length;i+=4)m=Math.max(m,Math.abs(a[i]));g.fillRect(x,h/2-m*h/2,1,Math.max(1,m*h))}}
 async function synthPlay(semi){await resume();spBuf=await renderPatch(SP,semi);drawWave();previewBuf(spBuf)}
 function saveSheet(){

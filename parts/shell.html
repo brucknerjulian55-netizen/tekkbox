@@ -20,7 +20,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 #main{flex:1;min-height:0;position:relative}
 .view{position:absolute;inset:0;display:none;flex-direction:column;gap:6px;min-height:0}
 .view.on{display:flex}
-#nav{flex:none;display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+#nav{flex:none;display:grid;grid-template-columns:repeat(6,1fr);gap:2px}
 #nav button{height:40px;border-radius:5px;font-weight:700;font-size:13.5px;background:var(--deepA)}
 #nav button.on{background:var(--ink);color:var(--body)}
 
@@ -214,14 +214,14 @@ input[type=file]{display:none}
     <button class="mini" id="songMode">Song</button>
   </div>
   <div id="main">
-    <div class="view on" id="pv">
+    <div class="view" id="pv">
       <div class="stepGrid" id="steps"></div>
       <div id="pads"></div>
       <div class="liveCol">
         <div id="mode"><button class="seg on" data-m="play">Pads</button><button class="seg" data-m="note">Noten</button><button class="seg" data-m="mute">Stumm</button></div>
         <div class="faders">
           <label class="fader"><span id="fLab">Filter</span><input id="filter" class="free" type="range" min="-100" max="100" value="0"></label>
-          <label class="fader">Drive<input id="drive" class="free" type="range" min="0" max="100" value="25"></label>
+          <label class="fader">Drive<input id="drive" class="free" type="range" min="0" max="100" value="25" data-def="25"></label>
         </div>
         <div class="holds"><button class="hold" data-h="r16">Roll 1/16</button><button class="hold" data-h="r32">Roll 1/32</button><button class="hold" data-h="echo">Echo</button><button class="hold" id="soundBtn">Sound</button></div>
       </div>
@@ -237,16 +237,16 @@ input[type=file]{display:none}
       <div id="prScroll"><div id="prHead"></div><div id="prInner"><div id="prKeys"></div><canvas id="prCanvas"></canvas></div></div>
     </div>
     <div class="view" id="sv"><p class="note">Wähle oben ein Pattern und tippe in eine Spur. Tippe nochmal, um es zu entfernen. Mit „Song“ oben spielst du das Arrangement ab.</p><div id="songScroll"></div></div>
-    <div class="view" id="mv"><div id="mixList"></div></div>
-    <div class="view" id="lv"><div id="liveTop"><button class="mini" id="liveEditBtn">Bearbeiten</button><button class="mini liveAdd" id="liveAddB">+ Knopf</button><button class="mini liveAdd" id="liveAddS">+ Slider</button><button class="mini liveAdd" id="liveAddK">+ Knob</button><button class="mini liveAdd" id="liveAddX">+ XY</button><button class="mini liveAdd" id="liveClear">Leeren</button></div><div id="liveArea"></div></div>
+    <div class="view" id="mv"><div id="mixTop"><button class="act" id="mixChk">Mix prüfen</button></div><div id="mixList"></div></div>
+    <div class="view on" id="lv"><div id="liveTop"><button class="mini" id="liveEditBtn">Bearbeiten</button><button class="mini liveAdd" id="liveAddP">+ Pads</button><button class="mini liveAdd" id="liveAddT">+ Schritte</button><button class="mini liveAdd" id="liveAddF">+ FX</button><button class="mini liveAdd" id="liveAddB">+ Knopf</button><button class="mini liveAdd" id="liveAddS">+ Slider</button><button class="mini liveAdd" id="liveAddK">+ Knob</button><button class="mini liveAdd" id="liveAddX">+ XY</button><button class="mini liveAdd" id="liveClear">Leeren</button></div><div id="liveArea"></div></div>
     <div class="view" id="bv"><div id="bTabs"><button class="seg on" data-b="synth">Synth</button><button class="seg" data-b="lib">Sounds</button></div><div id="bSynth"></div><div id="bLib"></div></div>
   </div>
   <div id="nav">
-    <button class="on" data-v="pv">Pads</button><button data-v="rv">Rack</button><button data-v="ov">Piano</button><button data-v="sv">Song</button><button data-v="mv">Mixer</button><button data-v="lv">Live</button><button data-v="bv">Bau</button>
+    <button class="on" data-v="lv">Live</button><button data-v="rv">Rack</button><button data-v="ov">Piano</button><button data-v="sv">Song</button><button data-v="mv">Mixer</button><button data-v="bv">Bau</button>
   </div>
 </div>
 <div id="sheetBg"></div><div id="sheet" role="dialog" aria-modal="true"></div>
-<div id="toast" role="status"></div>
+<div id="toast" role="status"></div><button id="rst"></button>
 <div id="hint"><img src="__LOGO__" alt=""><h1>Tekkbox</h1><p>Deine Hardtekk-DAW. Läuft ohne Internet.</p><button id="go">Loslegen</button></div>
 <input id="file" type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a"><input id="projFile" type="file" accept=".json,application/json"><input id="packFile" type="file"><input id="imgFile" type="file" accept="image/*"><input id="libFile" type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a">
 <script>
