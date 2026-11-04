@@ -4,15 +4,15 @@ const LOOK={act:'play',shape:'eck',look:'neon',fs:15,showL:true,hold:false,sprin
 const lv=(type,x,y,w,h,target,color)=>({id:Date.now()+Math.random(),type,x,y,w,h,target,color,label:'',...LOOK});
 function liveTargets(type){
   const r=[];
-  if(type==='btn'){S.tracks.forEach(t=>r.push(['hit:'+t.id,'Sound: '+t.name]));S.tracks.forEach(t=>r.push(['mute:'+t.id,'Stumm: '+t.name]));S.patterns.forEach((p,i)=>r.push(['pat:'+i,'Pattern: '+p.name]));r.push(['roll:16','Roll 1/16 (halten)'],['roll:32','Roll 1/32 (halten)'],['echo','Echo (halten)'],['play','Start und Stopp']);
+  if(type==='btn'){S.tracks.forEach(t=>r.push(['hit:'+t.id,'Sound: '+t.name]));S.tracks.forEach(t=>r.push(['mute:'+t.id,'Stumm: '+t.name]));S.patterns.forEach((p,i)=>r.push(['pat:'+i,'Pattern: '+p.name]));(S.binds||[]).filter(b=>b.kind==='on').forEach(b=>r.push(['bindon:'+b.id,'Bindung: '+b.label]));r.push(['roll:16','Roll 1/16 (halten)'],['roll:32','Roll 1/32 (halten)'],['echo','Echo (halten)'],['play','Start und Stopp']);
     S.slots.forEach((s,i)=>s.fx.forEach((f,k)=>r.push([`fx:${i}:${k}`,`Effekt an/aus: ${s.name}, ${FX[f.t].name}`])))}
-  else{r.push(['echot','Live-Echo: Zeit'],['echof','Live-Echo: Rückkopplung'],['filter','Live-Filter'],['drive','Drive'],['bpm','Tempo']);S.slots.forEach((s,i)=>r.push(['svol:'+i,'Lautstärke Slot: '+s.name]));S.tracks.forEach(t=>r.push(['tvol:'+t.id,'Lautstärke Kanal: '+t.name]));
+  else{(S.binds||[]).filter(b=>b.kind!=='on').forEach(b=>r.push(['bind:'+b.id,'Bindung: '+b.label]));r.push(['echot','Live-Echo: Zeit'],['echof','Live-Echo: Rückkopplung'],['filter','Live-Filter'],['drive','Drive'],['bpm','Tempo']);S.slots.forEach((s,i)=>r.push(['svol:'+i,'Lautstärke Slot: '+s.name]));S.tracks.forEach(t=>r.push(['tvol:'+t.id,'Lautstärke Kanal: '+t.name]));
     S.slots.forEach((s,i)=>s.fx.forEach((f,k)=>(FX[f.t].s||[]).forEach(p=>r.push([`fxp:${i}:${k}:${p[0]}`,`${s.name}, ${FX[f.t].name}: ${p[1]}`]))))}
   return r;
 }
 const kindOf=c=>c.type==='btn'?'btn':'val';
 const targetName=(kind,tg)=>{const x=liveTargets(kind).find(o=>o[0]===tg);return x?x[1].replace(/^[^:]*: /,'').replace(' (halten)',''):'Nicht belegt'};
-function sliderRange(tg){const a=String(tg).split(':');
+function sliderRange(tg){const a=String(tg).split(':');if(a[0]==='bind')return bindRange(+a[1]);
   if(tg==='echot')return{min:1,max:8,step:1,get:()=>LE.st,set:v=>{LE.st=v;if(ctx)echoDl.delayTime.setTargetAtTime(stepDur()*v,ctx.currentTime,.02)}};
   if(tg==='echof')return{min:0,max:.92,get:()=>LE.fb,set:v=>{LE.fb=v;if(echoFb)echoFb.gain.setTargetAtTime(v,ctx.currentTime,.02)}};
   if(tg==='filter')return{min:-100,max:100,get:()=>+fil.value,set:v=>{fil.value=v;setFilter(v)},spring:0};
@@ -32,6 +32,7 @@ function liveDown(c){const tg=c.target,a=tg.split(':');
     else{trigger(t,ctx.currentTime,0);record(t.id,0)}}
   else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}}
   else if(a[0]==='pat'){if(S.patterns[+a[1]])goPat(+a[1])}
+  else if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);if(h){h.f.on=!h.f.on;rebuildSlot(h.i);liveMark();save()}}
   else if(a[0]==='roll')roll=+a[1];
   else if(tg==='echo')echoIn.gain.setTargetAtTime(.8,ctx.currentTime,.01);
   else if(tg==='play')togglePlay();
@@ -39,12 +40,12 @@ function liveDown(c){const tg=c.target,a=tg.split(':');
 }
 const liveMark=()=>$$('#liveArea .lc').forEach(e=>e._c&&e.classList.toggle('act',!!liveActive(e._c)));
 function liveUp(c){const a=c.target.split(':');if(a[0]==='roll')roll=0;else if(c.target==='echo'&&ctx)echoIn.gain.setTargetAtTime(0,ctx.currentTime,.02);else if(a[0]==='hit'&&ctx){const t=tr(+a[1]);if(!t)return;if(c.act==='holdm'){t.mute=false;liveMark()}else if(c.act==='holdo'){t.mute=true;choke(t.id,ctx.currentTime);liveMark()}else if(c.act==='play'&&c.hold)choke(t.id,ctx.currentTime)}}
-function liveActive(c){const a=c.target.split(':');if(a[0]==='hit'&&c.act!=='play'){const t=tr(+a[1]);return t&&!t.mute}if(a[0]==='mute'){const t=tr(+a[1]);return t&&t.mute}if(a[0]==='pat')return S.cur===+a[1];if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];return f&&f.on}return false}
+function liveActive(c){const a=c.target.split(':');if(a[0]==='hit'&&c.act!=='play'){const t=tr(+a[1]);return t&&!t.mute}if(a[0]==='mute'){const t=tr(+a[1]);return t&&t.mute}if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);return h&&h.f.on}if(a[0]==='pat')return S.cur===+a[1];if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];return f&&f.on}return false}
 function liveLabel(c){return c.label||(c.type==='xy'?targetName('val',c.tx)+' / '+targetName('val',c.ty):targetName(kindOf(c),c.target))}
 const BLK={pads:{t:'Pads',w:96,h:48,n:['#mode']},steps:{t:'Schritte',w:96,h:18,n:['#steps']},fx:{t:'Live-FX',w:96,h:24,n:['.faders','.holds']}};
 function parkBlocks(){const h=$('#pv');Object.values(BLK).forEach(B=>B.n.forEach(s=>h.append($(s))))}
 const liveA=()=>S.area=S.area||{w:100,h:100,z:100};
-function fitNew(c){const A=liveA(),s=$('#liveScroll'),i=$('#liveArea');c.w=Math.min(100,c.w*100/A.w);c.h=Math.min(100,c.h*100/A.h);c.x=Math.max(0,Math.min(100-c.w,(s.scrollLeft+s.clientWidth/2)/i.clientWidth*100-c.w/2));c.y=Math.max(0,Math.min(100-c.h,(s.scrollTop+s.clientHeight/2)/i.clientHeight*100-c.h/2));return c}
+function fitNew(c){const A=liveA(),s=$('#liveScroll'),i=$('#liveArea');c.w=Math.min(100,c.w*100/A.w);c.h=Math.min(100,c.h*100/A.h);if(!i.clientWidth){c.x=(100-c.w)/2;c.y=Math.min(100-c.h,(100-c.h)/2+S.live.length%5*4);return c}c.x=Math.max(0,Math.min(100-c.w,(s.scrollLeft+s.clientWidth/2)/i.clientWidth*100-c.w/2));c.y=Math.max(0,Math.min(100-c.h,(s.scrollTop+s.clientHeight/2)/i.clientHeight*100-c.h/2+(S.live.length%5-2)*5*100/A.h));return c}
 function addBlock(k){if(k!=='pads'&&S.live.some(c=>c.block===k))return toast(BLK[k].t+' ist schon auf der Fläche.');const c=lv('block',2,2,BLK[k].w,BLK[k].h,'','#6a2ff0');c.block=k;const o=S.live.filter(x=>x.block==='pads').length;fitNew(c);if(k==='pads')c.y=Math.min(100-c.h,c.y+o*3);S.live.push(c);drawLive();save()}
 function drawLive(){
   parkBlocks();if(view!=='lv')return;const b=$('#liveArea'),box=$('#liveScroll'),A=S.area=S.area||{w:100,h:100,z:100};b.style.width=box.clientWidth*A.w/100*A.z/100+'px';b.style.height=box.clientHeight*A.h/100*A.z/100+'px';let modeUsed=false;b.innerHTML='';b.classList.toggle('edit',liveEdit);$('#liveEditBtn').classList.toggle('on',liveEdit);$('#liveEditBtn').textContent=liveEdit?'Fertig':'Bearbeiten';
@@ -171,4 +172,60 @@ function mixReport(N,pow){
   <div class="row" style="margin-top:9px"><button class="act alt" id="mcA">Nochmal prüfen</button><button class="act" id="sC">Fertig</button></div>`);
   $('#mcA').onclick=mixCheck;$('#sC').onclick=closeSheet;
 }
+
+/* ---------- Bindungen: einzelne Werte für den Live-Tab freigeben ---------- */
+const uid=()=>Date.now()+Math.floor(Math.random()*1e6);
+function ensureFxIds(){S.binds=S.binds||[];S.slots.forEach(s=>s.fx.forEach(f=>{if(!f.id)f.id=uid()}))}
+function fxBy(fid){for(let i=0;i<S.slots.length;i++){const k=S.slots[i].fx.findIndex(f=>f.id===fid);if(k>=0)return{i,k,f:S.slots[i].fx[k]}}return null}
+const pGet=(P,p)=>p.split('.').reduce((o,k)=>o&&o[k],P);
+const pSet=(P,p,v)=>{const a=p.split('.'),l=a.pop();a.reduce((o,k)=>o[k],P)[l]=v};
+function fxParams(f){const D=FX[f.t],r=(D.s||[]).map(s=>({path:s[0],name:s[1],min:s[2],max:s[3],step:s[4],log:s[0]==='f'}));
+  if(f.t==='eq')f.p.b.forEach((_,j)=>r.push({path:`b.${j}.f`,name:`Punkt ${j+1} Frequenz`,min:20,max:20000,step:1,log:true},{path:`b.${j}.g`,name:`Punkt ${j+1} Lautstärke`,min:-18,max:18,step:.5},{path:`b.${j}.q`,name:`Punkt ${j+1} Breite`,min:.3,max:10,step:.1}));
+  return r}
+let bindQ=new Set(),bindRaf=0;
+function bindApply(n){bindQ.add(n);if(!bindRaf)bindRaf=requestAnimationFrame(()=>{bindRaf=0;bindQ.forEach(x=>{try{x.set()}catch(e){}});bindQ.clear()})}
+function bindRef(b){
+  if(b.kind==='fx'){const h=fxBy(b.fid);if(!h)return null;return{get:()=>pGet(h.f.p,b.path),set:v=>{pSet(h.f.p,b.path,v);const n=fxNode(h.i,h.k);if(n)bindApply(n);save()}}}
+  if(b.kind==='svol'){const s=S.slots[b.slot];return s&&{get:()=>s.vol,set:v=>{s.vol=v;slotVol(b.slot);save()}}}
+  const t=tr(b.tid);if(!t)return null;
+  if(b.kind==='tvol')return{get:()=>t.vol,set:v=>{t.vol=v;wireTrack(t);save()}};
+  if(b.kind==='tpan')return{get:()=>t.pan,set:v=>{t.pan=v;wireTrack(t);save()}};
+  return null}
+function bindRange(id){const b=(S.binds||[]).find(x=>x.id===id),r=b&&bindRef(b);if(!r)return null;
+  const to=u=>{let v=b.log?b.min*Math.pow(b.max/b.min,u):b.min+(b.max-b.min)*u;if(b.step)v=Math.round(v/b.step)*b.step;return +v.toFixed(4)},from=v=>b.log?Math.log(v/b.min)/Math.log(b.max/b.min):(v-b.min)/((b.max-b.min)||1);
+  return{min:0,max:1,get:()=>Math.max(0,Math.min(1,from(r.get()))),set:u=>r.set(to(u))}}
+const fmtV=(b,v)=>b.log&&v>=1000?(v/1000).toFixed(2)+' k':(+v).toFixed(b.step&&b.step<1?(b.step<.1?2:1):0);
+function bindSheet(d,back){
+  let b=S.binds.find(x=>x.kind===d.kind&&x.fid===d.fid&&x.path===d.path&&x.slot===d.slot&&x.tid===d.tid);const isNew=!b;if(isNew)b={...d,lo:d.min,hi:d.max,id:uid()};
+  const pos=v=>Math.round((d.log?Math.log(v/d.lo0)/Math.log(d.hi0/d.lo0):(v-d.lo0)/((d.hi0-d.lo0)||1))*1000),val=p=>{const u=p/1000;let v=d.log?d.lo0*Math.pow(d.hi0/d.lo0,u):d.lo0+(d.hi0-d.lo0)*u;if(d.step)v=Math.round(v/d.step)*d.step;return +v.toFixed(4)};
+  d.lo0=d.lo0??d.min;d.hi0=d.hi0??d.max;const min0=b.min,max0=b.max;
+  openSheet(`<h2>Live binden</h2><p>${esc(d.label)}</p>
+  <label><span>Minimum: <span id="bMn">${fmtV(d,b.min)}</span></span><input id="bMi" type="range" min="0" max="1000" value="${pos(b.min)}" data-def="0"></label>
+  <label><span>Maximum: <span id="bMx">${fmtV(d,b.max)}</span></span><input id="bMa" type="range" min="0" max="1000" value="${pos(b.max)}" data-def="1000"></label>
+  <p>Der Regler im Live-Tab bleibt immer zwischen diesen beiden Werten.</p>
+  <div class="row"><button class="act" id="bS">${isNew?'Binden':'Speichern'}</button><button class="act alt" id="bK">Binden und Knob anlegen</button>${isNew?'':'<button class="act alt full" id="bX">Bindung entfernen</button>'}<button class="act alt full" id="bB">Zurück</button></div>`);
+  let mn=b.min,mx=b.max;$('#bMi').oninput=e=>{mn=val(+e.target.value);$('#bMn').textContent=fmtV(d,mn)};$('#bMa').oninput=e=>{mx=val(+e.target.value);$('#bMx').textContent=fmtV(d,mx)};
+  const commit=()=>{b.min=mn;b.max=mx;if(isNew)S.binds.push(b);const r=bindRef(b);if(r){const v=r.get(),l=Math.min(mn,mx),h=Math.max(mn,mx);if(v<l)r.set(l);if(v>h)r.set(h)}save()};
+  $('#bS').onclick=()=>{commit();toast('Gebunden. Im Live-Tab unter + Bindung');back()};
+  $('#bK').onclick=()=>{commit();const c=lv('knob',38,38,24,16,'bind:'+b.id,'#b14dff');c.label=d.short||'';fitNew(c);S.live.push(c);save();toast('Knob liegt im Live-Tab');back()};
+  if(!isNew)$('#bX').onclick=()=>{S.binds=S.binds.filter(x=>x!==b);S.live=S.live.filter(c=>c.target!=='bind:'+b.id);save();back()};$('#bB').onclick=back;
+}
+const bound=(fn)=>(S.binds||[]).some(fn);
+function bindChips(f,i,k){const sN=S.slots[i].name,D=FX[f.t],ps=fxParams(f);
+  return `<h3>Live binden</h3><p>Wähle die Werte, die du im Live-Tab steuern willst.</p><div class="bndC">${ps.map((p,j)=>`<button class="chip${bound(b=>b.fid===f.id&&b.path===p.path)?' on':''}" data-bp="${j}">${esc(p.name)}</button>`).join('')}<button class="chip${bound(b=>b.fid===f.id&&b.kind==='on')?' on':''}" id="bOn">An und Aus</button></div>`}
+function wireChips(f,i,k){const ps=fxParams(f),sN=S.slots[i].name,D=FX[f.t];
+  $$('#sheet [data-bp]').forEach(e=>e.onclick=()=>{const p=ps[+e.dataset.bp];bindSheet({kind:'fx',fid:f.id,path:p.path,min:p.min,max:p.max,step:p.step,log:p.log,label:`${sN}, ${D.name}: ${p.name}`,short:p.name},()=>fxSheet(i,S.slots[i].fx.indexOf(f)))});
+  $('#bOn').onclick=()=>{const h=S.binds.find(b=>b.fid===f.id&&b.kind==='on');if(h){S.binds=S.binds.filter(b=>b!==h);S.live=S.live.filter(c=>c.target!=='bindon:'+h.id);toast('Bindung entfernt')}else{S.binds.push({id:uid(),kind:'on',fid:f.id,label:`${sN}, ${D.name}: An und Aus`});toast('Gebunden. Im Live-Tab unter + Bindung')}save();fxSheet(i,S.slots[i].fx.indexOf(f))}}
+function bindPick(){const L=(S.binds||[]).filter(b=>b.kind==='on'?fxBy(b.fid):bindRef(b));
+  openSheet(`<h2>Bindungen</h2>${L.length?'<p>Tippe auf eine Art, um die Bindung auf die Fläche zu legen.</p>':'<p>Noch nichts gebunden. Öffne im Mixer einen Effekt und wähle unter Live binden die Werte aus.</p>'}
+  ${L.map(b=>`<div class="bnR"><b>${esc(b.label)}</b>${b.kind==='on'?`<button class="chip" data-a="${b.id}" data-t="btn">Knopf</button>`:`<span>${fmtV(b,b.min)} bis ${fmtV(b,b.max)}</span><button class="chip" data-a="${b.id}" data-t="knob">Knob</button><button class="chip" data-a="${b.id}" data-t="slider">Slider</button>`}</div>`).join('')}
+  <div class="row"><button class="act full" id="sC">Fertig</button></div>`);$('#sC').onclick=closeSheet;
+  $$('#sheet [data-a]').forEach(e=>e.onclick=()=>{const id=+e.dataset.a,b=S.binds.find(x=>x.id===id),ty=e.dataset.t,C={btn:[24,16],knob:[24,16],slider:[60,12]}[ty],c=lv(ty,38,40,C[0],C[1],(b.kind==='on'?'bindon:':'bind:')+id,ty==='slider'?'#22e6ff':'#b14dff');if(ty==='slider')c.dir='h';c.label=(b.short||b.label.split(': ').pop()).slice(0,18);fitNew(c);S.live.push(c);drawLive();save();closeSheet()})}
+/* ---------- Leistung ---------- */
+const PERF={late:0,fps:0,fr:0,t:0,long:0};
+function perfTick(now){PERF.fr++;if(now-PERF.t>=1000){PERF.fps=PERF.fr;PERF.fr=0;PERF.t=now}}
+function perfSheet(){const fx=S.slots.reduce((a,s)=>a+s.fx.filter(f=>f.on).length,0),hv=S.slots.reduce((a,s)=>a+s.fx.filter(f=>f.on&&(f.t==='reverb'||f.t==='gate'||f.t==='half')).length,0),vo=Object.values(voices).reduce((a,v)=>a+v.length,0),lat=ctx?Math.round(((ctx.baseLatency||0)+(ctx.outputLatency||0))*1000):0;
+  openSheet(`<h2>Leistung</h2><p>Starte dein Projekt, spiele etwas und schau hier nach. Aussetzer sollten bei 0 bleiben.</p>
+  ${[['Aussetzer im Timing',PERF.late],['Bilder pro Sekunde',PERF.fps],['Stimmen gerade',vo],['Aktive Effekte',fx],['Davon schwer',hv],['Kanäle',S.tracks.length],['Audio-Verzögerung',lat+' ms']].map(r=>`<div class="stp" style="grid-template-columns:1fr auto"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}
+  <div class="row"><button class="act alt" id="pfR">Zähler zurücksetzen</button><button class="act" id="sC">Fertig</button></div>`);$('#pfR').onclick=()=>{PERF.late=0;perfSheet()};$('#sC').onclick=closeSheet}
 

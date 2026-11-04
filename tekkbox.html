@@ -296,6 +296,8 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
 #bgP{width:min(52vw,200px);aspect-ratio:9/16;margin:0 auto 10px;overflow:hidden;position:relative;border:1px solid var(--line);touch-action:none;cursor:move;background:var(--body)}
 #bgP .im{position:absolute;inset:0;background-size:cover;pointer-events:none}
 #prCh{min-width:76px}
+.bndC{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.bndC .chip{height:auto;min-height:32px;padding:4px 10px;white-space:normal;text-align:left;border-radius:2px}
+.bnR{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 6px;align-items:center;background:var(--deep);padding:6px 8px;margin-bottom:4px}.bnR b{grid-column:1/-1;font-size:14px}.bnR span{font-size:13px;color:var(--dim)}
 
 </style>
 </head>
@@ -340,7 +342,7 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
     </div>
     <div class="view" id="sv"><p class="note">Wähle oben ein Pattern und tippe in eine Spur. Tippe nochmal, um es zu entfernen. Mit „Song“ oben spielst du das Arrangement ab.</p><div id="songScroll"></div></div>
     <div class="view" id="mv"><div id="mixTop"><button class="act" id="mixChk">Mix prüfen</button></div><div id="mixList"></div></div>
-    <div class="view on" id="lv"><div id="liveTop"><button class="mini" id="liveEditBtn">Bearbeiten</button><button class="mini" id="liveSize">Fläche</button><button class="mini liveAdd" id="liveAddP">+ Pads</button><button class="mini liveAdd" id="liveAddT">+ Schritte</button><button class="mini liveAdd" id="liveAddF">+ FX</button><button class="mini liveAdd" id="liveAddB">+ Knopf</button><button class="mini liveAdd" id="liveAddS">+ Slider</button><button class="mini liveAdd" id="liveAddK">+ Knob</button><button class="mini liveAdd" id="liveAddX">+ XY</button><button class="mini liveAdd" id="liveAddV">+ Vorlage</button><button class="mini liveAdd" id="liveClear">Leeren</button></div><div id="liveScroll"><div id="liveArea"></div></div></div>
+    <div class="view on" id="lv"><div id="liveTop"><button class="mini" id="liveEditBtn">Bearbeiten</button><button class="mini" id="liveSize">Fläche</button><button class="mini liveAdd" id="liveAddP">+ Pads</button><button class="mini liveAdd" id="liveAddT">+ Schritte</button><button class="mini liveAdd" id="liveAddF">+ FX</button><button class="mini liveAdd" id="liveAddB">+ Knopf</button><button class="mini liveAdd" id="liveAddS">+ Slider</button><button class="mini liveAdd" id="liveAddK">+ Knob</button><button class="mini liveAdd" id="liveAddX">+ XY</button><button class="mini liveAdd" id="liveAddBd">+ Bindung</button><button class="mini liveAdd" id="liveAddV">+ Vorlage</button><button class="mini liveAdd" id="liveClear">Leeren</button></div><div id="liveScroll"><div id="liveArea"></div></div></div>
     <div class="view" id="bv"><div id="bTabs"><button class="seg on" data-b="synth">Synth</button><button class="seg" data-b="lib">Sounds</button></div><div id="bSynth"></div><div id="bLib"></div></div>
   </div>
   <div id="nav">
@@ -536,15 +538,15 @@ const LOOK={act:'play',shape:'eck',look:'neon',fs:15,showL:true,hold:false,sprin
 const lv=(type,x,y,w,h,target,color)=>({id:Date.now()+Math.random(),type,x,y,w,h,target,color,label:'',...LOOK});
 function liveTargets(type){
   const r=[];
-  if(type==='btn'){S.tracks.forEach(t=>r.push(['hit:'+t.id,'Sound: '+t.name]));S.tracks.forEach(t=>r.push(['mute:'+t.id,'Stumm: '+t.name]));S.patterns.forEach((p,i)=>r.push(['pat:'+i,'Pattern: '+p.name]));r.push(['roll:16','Roll 1/16 (halten)'],['roll:32','Roll 1/32 (halten)'],['echo','Echo (halten)'],['play','Start und Stopp']);
+  if(type==='btn'){S.tracks.forEach(t=>r.push(['hit:'+t.id,'Sound: '+t.name]));S.tracks.forEach(t=>r.push(['mute:'+t.id,'Stumm: '+t.name]));S.patterns.forEach((p,i)=>r.push(['pat:'+i,'Pattern: '+p.name]));(S.binds||[]).filter(b=>b.kind==='on').forEach(b=>r.push(['bindon:'+b.id,'Bindung: '+b.label]));r.push(['roll:16','Roll 1/16 (halten)'],['roll:32','Roll 1/32 (halten)'],['echo','Echo (halten)'],['play','Start und Stopp']);
     S.slots.forEach((s,i)=>s.fx.forEach((f,k)=>r.push([`fx:${i}:${k}`,`Effekt an/aus: ${s.name}, ${FX[f.t].name}`])))}
-  else{r.push(['echot','Live-Echo: Zeit'],['echof','Live-Echo: Rückkopplung'],['filter','Live-Filter'],['drive','Drive'],['bpm','Tempo']);S.slots.forEach((s,i)=>r.push(['svol:'+i,'Lautstärke Slot: '+s.name]));S.tracks.forEach(t=>r.push(['tvol:'+t.id,'Lautstärke Kanal: '+t.name]));
+  else{(S.binds||[]).filter(b=>b.kind!=='on').forEach(b=>r.push(['bind:'+b.id,'Bindung: '+b.label]));r.push(['echot','Live-Echo: Zeit'],['echof','Live-Echo: Rückkopplung'],['filter','Live-Filter'],['drive','Drive'],['bpm','Tempo']);S.slots.forEach((s,i)=>r.push(['svol:'+i,'Lautstärke Slot: '+s.name]));S.tracks.forEach(t=>r.push(['tvol:'+t.id,'Lautstärke Kanal: '+t.name]));
     S.slots.forEach((s,i)=>s.fx.forEach((f,k)=>(FX[f.t].s||[]).forEach(p=>r.push([`fxp:${i}:${k}:${p[0]}`,`${s.name}, ${FX[f.t].name}: ${p[1]}`]))))}
   return r;
 }
 const kindOf=c=>c.type==='btn'?'btn':'val';
 const targetName=(kind,tg)=>{const x=liveTargets(kind).find(o=>o[0]===tg);return x?x[1].replace(/^[^:]*: /,'').replace(' (halten)',''):'Nicht belegt'};
-function sliderRange(tg){const a=String(tg).split(':');
+function sliderRange(tg){const a=String(tg).split(':');if(a[0]==='bind')return bindRange(+a[1]);
   if(tg==='echot')return{min:1,max:8,step:1,get:()=>LE.st,set:v=>{LE.st=v;if(ctx)echoDl.delayTime.setTargetAtTime(stepDur()*v,ctx.currentTime,.02)}};
   if(tg==='echof')return{min:0,max:.92,get:()=>LE.fb,set:v=>{LE.fb=v;if(echoFb)echoFb.gain.setTargetAtTime(v,ctx.currentTime,.02)}};
   if(tg==='filter')return{min:-100,max:100,get:()=>+fil.value,set:v=>{fil.value=v;setFilter(v)},spring:0};
@@ -564,6 +566,7 @@ function liveDown(c){const tg=c.target,a=tg.split(':');
     else{trigger(t,ctx.currentTime,0);record(t.id,0)}}
   else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}}
   else if(a[0]==='pat'){if(S.patterns[+a[1]])goPat(+a[1])}
+  else if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);if(h){h.f.on=!h.f.on;rebuildSlot(h.i);liveMark();save()}}
   else if(a[0]==='roll')roll=+a[1];
   else if(tg==='echo')echoIn.gain.setTargetAtTime(.8,ctx.currentTime,.01);
   else if(tg==='play')togglePlay();
@@ -571,12 +574,12 @@ function liveDown(c){const tg=c.target,a=tg.split(':');
 }
 const liveMark=()=>$$('#liveArea .lc').forEach(e=>e._c&&e.classList.toggle('act',!!liveActive(e._c)));
 function liveUp(c){const a=c.target.split(':');if(a[0]==='roll')roll=0;else if(c.target==='echo'&&ctx)echoIn.gain.setTargetAtTime(0,ctx.currentTime,.02);else if(a[0]==='hit'&&ctx){const t=tr(+a[1]);if(!t)return;if(c.act==='holdm'){t.mute=false;liveMark()}else if(c.act==='holdo'){t.mute=true;choke(t.id,ctx.currentTime);liveMark()}else if(c.act==='play'&&c.hold)choke(t.id,ctx.currentTime)}}
-function liveActive(c){const a=c.target.split(':');if(a[0]==='hit'&&c.act!=='play'){const t=tr(+a[1]);return t&&!t.mute}if(a[0]==='mute'){const t=tr(+a[1]);return t&&t.mute}if(a[0]==='pat')return S.cur===+a[1];if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];return f&&f.on}return false}
+function liveActive(c){const a=c.target.split(':');if(a[0]==='hit'&&c.act!=='play'){const t=tr(+a[1]);return t&&!t.mute}if(a[0]==='mute'){const t=tr(+a[1]);return t&&t.mute}if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);return h&&h.f.on}if(a[0]==='pat')return S.cur===+a[1];if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];return f&&f.on}return false}
 function liveLabel(c){return c.label||(c.type==='xy'?targetName('val',c.tx)+' / '+targetName('val',c.ty):targetName(kindOf(c),c.target))}
 const BLK={pads:{t:'Pads',w:96,h:48,n:['#mode']},steps:{t:'Schritte',w:96,h:18,n:['#steps']},fx:{t:'Live-FX',w:96,h:24,n:['.faders','.holds']}};
 function parkBlocks(){const h=$('#pv');Object.values(BLK).forEach(B=>B.n.forEach(s=>h.append($(s))))}
 const liveA=()=>S.area=S.area||{w:100,h:100,z:100};
-function fitNew(c){const A=liveA(),s=$('#liveScroll'),i=$('#liveArea');c.w=Math.min(100,c.w*100/A.w);c.h=Math.min(100,c.h*100/A.h);c.x=Math.max(0,Math.min(100-c.w,(s.scrollLeft+s.clientWidth/2)/i.clientWidth*100-c.w/2));c.y=Math.max(0,Math.min(100-c.h,(s.scrollTop+s.clientHeight/2)/i.clientHeight*100-c.h/2));return c}
+function fitNew(c){const A=liveA(),s=$('#liveScroll'),i=$('#liveArea');c.w=Math.min(100,c.w*100/A.w);c.h=Math.min(100,c.h*100/A.h);if(!i.clientWidth){c.x=(100-c.w)/2;c.y=Math.min(100-c.h,(100-c.h)/2+S.live.length%5*4);return c}c.x=Math.max(0,Math.min(100-c.w,(s.scrollLeft+s.clientWidth/2)/i.clientWidth*100-c.w/2));c.y=Math.max(0,Math.min(100-c.h,(s.scrollTop+s.clientHeight/2)/i.clientHeight*100-c.h/2+(S.live.length%5-2)*5*100/A.h));return c}
 function addBlock(k){if(k!=='pads'&&S.live.some(c=>c.block===k))return toast(BLK[k].t+' ist schon auf der Fläche.');const c=lv('block',2,2,BLK[k].w,BLK[k].h,'','#6a2ff0');c.block=k;const o=S.live.filter(x=>x.block==='pads').length;fitNew(c);if(k==='pads')c.y=Math.min(100-c.h,c.y+o*3);S.live.push(c);drawLive();save()}
 function drawLive(){
   parkBlocks();if(view!=='lv')return;const b=$('#liveArea'),box=$('#liveScroll'),A=S.area=S.area||{w:100,h:100,z:100};b.style.width=box.clientWidth*A.w/100*A.z/100+'px';b.style.height=box.clientHeight*A.h/100*A.z/100+'px';let modeUsed=false;b.innerHTML='';b.classList.toggle('edit',liveEdit);$('#liveEditBtn').classList.toggle('on',liveEdit);$('#liveEditBtn').textContent=liveEdit?'Fertig':'Bearbeiten';
@@ -704,6 +707,62 @@ function mixReport(N,pow){
   $('#mcA').onclick=mixCheck;$('#sC').onclick=closeSheet;
 }
 
+/* ---------- Bindungen: einzelne Werte für den Live-Tab freigeben ---------- */
+const uid=()=>Date.now()+Math.floor(Math.random()*1e6);
+function ensureFxIds(){S.binds=S.binds||[];S.slots.forEach(s=>s.fx.forEach(f=>{if(!f.id)f.id=uid()}))}
+function fxBy(fid){for(let i=0;i<S.slots.length;i++){const k=S.slots[i].fx.findIndex(f=>f.id===fid);if(k>=0)return{i,k,f:S.slots[i].fx[k]}}return null}
+const pGet=(P,p)=>p.split('.').reduce((o,k)=>o&&o[k],P);
+const pSet=(P,p,v)=>{const a=p.split('.'),l=a.pop();a.reduce((o,k)=>o[k],P)[l]=v};
+function fxParams(f){const D=FX[f.t],r=(D.s||[]).map(s=>({path:s[0],name:s[1],min:s[2],max:s[3],step:s[4],log:s[0]==='f'}));
+  if(f.t==='eq')f.p.b.forEach((_,j)=>r.push({path:`b.${j}.f`,name:`Punkt ${j+1} Frequenz`,min:20,max:20000,step:1,log:true},{path:`b.${j}.g`,name:`Punkt ${j+1} Lautstärke`,min:-18,max:18,step:.5},{path:`b.${j}.q`,name:`Punkt ${j+1} Breite`,min:.3,max:10,step:.1}));
+  return r}
+let bindQ=new Set(),bindRaf=0;
+function bindApply(n){bindQ.add(n);if(!bindRaf)bindRaf=requestAnimationFrame(()=>{bindRaf=0;bindQ.forEach(x=>{try{x.set()}catch(e){}});bindQ.clear()})}
+function bindRef(b){
+  if(b.kind==='fx'){const h=fxBy(b.fid);if(!h)return null;return{get:()=>pGet(h.f.p,b.path),set:v=>{pSet(h.f.p,b.path,v);const n=fxNode(h.i,h.k);if(n)bindApply(n);save()}}}
+  if(b.kind==='svol'){const s=S.slots[b.slot];return s&&{get:()=>s.vol,set:v=>{s.vol=v;slotVol(b.slot);save()}}}
+  const t=tr(b.tid);if(!t)return null;
+  if(b.kind==='tvol')return{get:()=>t.vol,set:v=>{t.vol=v;wireTrack(t);save()}};
+  if(b.kind==='tpan')return{get:()=>t.pan,set:v=>{t.pan=v;wireTrack(t);save()}};
+  return null}
+function bindRange(id){const b=(S.binds||[]).find(x=>x.id===id),r=b&&bindRef(b);if(!r)return null;
+  const to=u=>{let v=b.log?b.min*Math.pow(b.max/b.min,u):b.min+(b.max-b.min)*u;if(b.step)v=Math.round(v/b.step)*b.step;return +v.toFixed(4)},from=v=>b.log?Math.log(v/b.min)/Math.log(b.max/b.min):(v-b.min)/((b.max-b.min)||1);
+  return{min:0,max:1,get:()=>Math.max(0,Math.min(1,from(r.get()))),set:u=>r.set(to(u))}}
+const fmtV=(b,v)=>b.log&&v>=1000?(v/1000).toFixed(2)+' k':(+v).toFixed(b.step&&b.step<1?(b.step<.1?2:1):0);
+function bindSheet(d,back){
+  let b=S.binds.find(x=>x.kind===d.kind&&x.fid===d.fid&&x.path===d.path&&x.slot===d.slot&&x.tid===d.tid);const isNew=!b;if(isNew)b={...d,lo:d.min,hi:d.max,id:uid()};
+  const pos=v=>Math.round((d.log?Math.log(v/d.lo0)/Math.log(d.hi0/d.lo0):(v-d.lo0)/((d.hi0-d.lo0)||1))*1000),val=p=>{const u=p/1000;let v=d.log?d.lo0*Math.pow(d.hi0/d.lo0,u):d.lo0+(d.hi0-d.lo0)*u;if(d.step)v=Math.round(v/d.step)*d.step;return +v.toFixed(4)};
+  d.lo0=d.lo0??d.min;d.hi0=d.hi0??d.max;const min0=b.min,max0=b.max;
+  openSheet(`<h2>Live binden</h2><p>${esc(d.label)}</p>
+  <label><span>Minimum: <span id="bMn">${fmtV(d,b.min)}</span></span><input id="bMi" type="range" min="0" max="1000" value="${pos(b.min)}" data-def="0"></label>
+  <label><span>Maximum: <span id="bMx">${fmtV(d,b.max)}</span></span><input id="bMa" type="range" min="0" max="1000" value="${pos(b.max)}" data-def="1000"></label>
+  <p>Der Regler im Live-Tab bleibt immer zwischen diesen beiden Werten.</p>
+  <div class="row"><button class="act" id="bS">${isNew?'Binden':'Speichern'}</button><button class="act alt" id="bK">Binden und Knob anlegen</button>${isNew?'':'<button class="act alt full" id="bX">Bindung entfernen</button>'}<button class="act alt full" id="bB">Zurück</button></div>`);
+  let mn=b.min,mx=b.max;$('#bMi').oninput=e=>{mn=val(+e.target.value);$('#bMn').textContent=fmtV(d,mn)};$('#bMa').oninput=e=>{mx=val(+e.target.value);$('#bMx').textContent=fmtV(d,mx)};
+  const commit=()=>{b.min=mn;b.max=mx;if(isNew)S.binds.push(b);const r=bindRef(b);if(r){const v=r.get(),l=Math.min(mn,mx),h=Math.max(mn,mx);if(v<l)r.set(l);if(v>h)r.set(h)}save()};
+  $('#bS').onclick=()=>{commit();toast('Gebunden. Im Live-Tab unter + Bindung');back()};
+  $('#bK').onclick=()=>{commit();const c=lv('knob',38,38,24,16,'bind:'+b.id,'#b14dff');c.label=d.short||'';fitNew(c);S.live.push(c);save();toast('Knob liegt im Live-Tab');back()};
+  if(!isNew)$('#bX').onclick=()=>{S.binds=S.binds.filter(x=>x!==b);S.live=S.live.filter(c=>c.target!=='bind:'+b.id);save();back()};$('#bB').onclick=back;
+}
+const bound=(fn)=>(S.binds||[]).some(fn);
+function bindChips(f,i,k){const sN=S.slots[i].name,D=FX[f.t],ps=fxParams(f);
+  return `<h3>Live binden</h3><p>Wähle die Werte, die du im Live-Tab steuern willst.</p><div class="bndC">${ps.map((p,j)=>`<button class="chip${bound(b=>b.fid===f.id&&b.path===p.path)?' on':''}" data-bp="${j}">${esc(p.name)}</button>`).join('')}<button class="chip${bound(b=>b.fid===f.id&&b.kind==='on')?' on':''}" id="bOn">An und Aus</button></div>`}
+function wireChips(f,i,k){const ps=fxParams(f),sN=S.slots[i].name,D=FX[f.t];
+  $$('#sheet [data-bp]').forEach(e=>e.onclick=()=>{const p=ps[+e.dataset.bp];bindSheet({kind:'fx',fid:f.id,path:p.path,min:p.min,max:p.max,step:p.step,log:p.log,label:`${sN}, ${D.name}: ${p.name}`,short:p.name},()=>fxSheet(i,S.slots[i].fx.indexOf(f)))});
+  $('#bOn').onclick=()=>{const h=S.binds.find(b=>b.fid===f.id&&b.kind==='on');if(h){S.binds=S.binds.filter(b=>b!==h);S.live=S.live.filter(c=>c.target!=='bindon:'+h.id);toast('Bindung entfernt')}else{S.binds.push({id:uid(),kind:'on',fid:f.id,label:`${sN}, ${D.name}: An und Aus`});toast('Gebunden. Im Live-Tab unter + Bindung')}save();fxSheet(i,S.slots[i].fx.indexOf(f))}}
+function bindPick(){const L=(S.binds||[]).filter(b=>b.kind==='on'?fxBy(b.fid):bindRef(b));
+  openSheet(`<h2>Bindungen</h2>${L.length?'<p>Tippe auf eine Art, um die Bindung auf die Fläche zu legen.</p>':'<p>Noch nichts gebunden. Öffne im Mixer einen Effekt und wähle unter Live binden die Werte aus.</p>'}
+  ${L.map(b=>`<div class="bnR"><b>${esc(b.label)}</b>${b.kind==='on'?`<button class="chip" data-a="${b.id}" data-t="btn">Knopf</button>`:`<span>${fmtV(b,b.min)} bis ${fmtV(b,b.max)}</span><button class="chip" data-a="${b.id}" data-t="knob">Knob</button><button class="chip" data-a="${b.id}" data-t="slider">Slider</button>`}</div>`).join('')}
+  <div class="row"><button class="act full" id="sC">Fertig</button></div>`);$('#sC').onclick=closeSheet;
+  $$('#sheet [data-a]').forEach(e=>e.onclick=()=>{const id=+e.dataset.a,b=S.binds.find(x=>x.id===id),ty=e.dataset.t,C={btn:[24,16],knob:[24,16],slider:[60,12]}[ty],c=lv(ty,38,40,C[0],C[1],(b.kind==='on'?'bindon:':'bind:')+id,ty==='slider'?'#22e6ff':'#b14dff');if(ty==='slider')c.dir='h';c.label=(b.short||b.label.split(': ').pop()).slice(0,18);fitNew(c);S.live.push(c);drawLive();save();closeSheet()})}
+/* ---------- Leistung ---------- */
+const PERF={late:0,fps:0,fr:0,t:0,long:0};
+function perfTick(now){PERF.fr++;if(now-PERF.t>=1000){PERF.fps=PERF.fr;PERF.fr=0;PERF.t=now}}
+function perfSheet(){const fx=S.slots.reduce((a,s)=>a+s.fx.filter(f=>f.on).length,0),hv=S.slots.reduce((a,s)=>a+s.fx.filter(f=>f.on&&(f.t==='reverb'||f.t==='gate'||f.t==='half')).length,0),vo=Object.values(voices).reduce((a,v)=>a+v.length,0),lat=ctx?Math.round(((ctx.baseLatency||0)+(ctx.outputLatency||0))*1000):0;
+  openSheet(`<h2>Leistung</h2><p>Starte dein Projekt, spiele etwas und schau hier nach. Aussetzer sollten bei 0 bleiben.</p>
+  ${[['Aussetzer im Timing',PERF.late],['Bilder pro Sekunde',PERF.fps],['Stimmen gerade',vo],['Aktive Effekte',fx],['Davon schwer',hv],['Kanäle',S.tracks.length],['Audio-Verzögerung',lat+' ms']].map(r=>`<div class="stp" style="grid-template-columns:1fr auto"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}
+  <div class="row"><button class="act alt" id="pfR">Zähler zurücksetzen</button><button class="act" id="sC">Fertig</button></div>`);$('#pfR').onclick=()=>{PERF.late=0;perfSheet()};$('#sC').onclick=closeSheet}
+
 
 
 /* ---------- Datenmodell ---------- */
@@ -722,7 +781,7 @@ function defaultState(){
     slots:[mkSlot('Master'),mkSlot('Kick'),mkSlot('Bass'),mkSlot('Drums'),mkSlot('Melodie'),mkSlot('FX'),mkSlot('Slot 6'),mkSlot('Slot 7'),mkSlot('Slot 8')]};
 }
 function migrate(d){            /* Projekte aus Version 1 */
-  if(d.v===2){if(!d.live)d.live=[];return d}
+  if(d.v===2){if(!d.live)d.live=[];d.binds=d.binds||[];return d}
   const n=defaultState();n.bpm=d.bpm;n.cur=Math.min(d.cur||0,7);
   n.tracks.forEach(t=>Object.assign(t,d.tracks[t.id]||{}));
   n.patterns=d.patterns.map((p,i)=>{const q=newPat('Pattern '+'ABCDEFGH'[i]);p.forEach((a,t)=>a.forEach((v,s)=>{if(v!==null)(q.n[t]=q.n[t]||[]).push({s,n:v,l:1})}));return q});
@@ -863,7 +922,7 @@ function activeAt(p){
 const songEnd=()=>Math.max(BAR,...S.song.map(it=>it.b*BAR+patLen(S.patterns[it.p]||{bars:1})));
 function sched(){
   while(nextT<ctx.currentTime+.13){
-    const act=activeAt(pos),hits=[],d=stepDur();lastStep={t:nextT,s:pos};
+    const act=activeAt(pos),hits=[],d=stepDur();if(nextT<ctx.currentTime)PERF.late++;lastStep={t:nextT,s:pos};
     for(const t of S.tracks){
       if(roll&&t.id===sel)continue;
       const ns=[];for(const[P,st]of act)for(const x of P.n[t.id]||[])if(x.s===st)ns.push(x);
@@ -948,7 +1007,7 @@ function fillSheet(){
   $('#fX').onclick=()=>{delete pat().n[t.id];refreshGrid();save();closeSheet()};$('#sC').onclick=closeSheet;
 }
 /* ---------- Channel Rack ---------- */
-let rackCells=[],rackSel=null,rackDrag=false,rackSkip=false,rackLP=0;
+let rackPh=null,rackCells=[],rackSel=null,rackDrag=false,rackSkip=false,rackLP=0;
 function rackMark(){$$('.rRow').forEach(r=>r.classList.toggle('picked',!!rackSel&&rackSel.has(+r.dataset.id)));const b=$('#rackSel');b.style.display=rackSel?'':'none';if(rackSel)$('#rsN').textContent=rackSel.size+' gewählt'}
 function rackEnd(){rackSel=null;rackDrag=false;rackMark()}
 function rackPickAt(x,y){const r=document.elementFromPoint(x,y),w=r&&r.closest&&r.closest('.rRow');if(w&&rackSel){rackSel.add(+w.dataset.id);rackMark()}}
@@ -983,9 +1042,10 @@ function channelSheet(){
   <label>Start<input id="cSt" type="range" min="0" max="90" value="${(t.start||0)*100}" data-def="0"></label>
   <label>Länge<input id="sD" type="range" min="5" max="100" value="${t.len*100}" data-def="100"></label>
   <div class="colorRow"><span>Farbe</span><input id="cC" type="color" value="${t.color}"></div>
-  <div class="row"><button class="act alt" id="cR">Standard</button><button class="act alt" id="cD">Kanal löschen</button><button class="act full" id="sC">Fertig</button></div>`);
+  <div class="bndC"><button class="chip${bound(b=>b.kind==='tvol'&&b.tid===t.id)?' on':''}" id="cBv">Lautstärke live binden</button><button class="chip${bound(b=>b.kind==='tpan'&&b.tid===t.id)?' on':''}" id="cBp">Panorama live binden</button></div><div class="row"><button class="act alt" id="cR">Standard</button><button class="act alt" id="cD">Kanal löschen</button><button class="act full" id="sC">Fertig</button></div>`);
   if(padCtx){$('#cPd').onclick=()=>{const p=padCtx;padAssign(p.c,p.i)};$$('#cAct button').forEach(b=>b.onclick=()=>{const p=padCtx;p.c.acts=p.c.acts||[];p.c.acts[p.i]=b.dataset.v;t.mute=b.dataset.v==='holdo';drawPads();drawRack();save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y})}
   $('#cP2').onclick=()=>soundPicker('Sound für '+t.name,async(b,n)=>{await assignBuf(t,b,n);channelSheet();toast(n+' geladen')},channelSheet);
+  $('#cBv').onclick=()=>bindSheet({kind:'tvol',tid:t.id,min:0,max:1.2,step:.01,label:`Kanal ${t.name}: Lautstärke`,short:t.name},channelSheet);$('#cBp').onclick=()=>bindSheet({kind:'tpan',tid:t.id,min:-1,max:1,step:.01,label:`Kanal ${t.name}: Panorama`,short:'Pan '+t.name},channelSheet);
   $('#cR').onclick=()=>{Object.assign(t,{vol:.85,pan:0,tune:0,len:1,start:0});wireTrack(t);drawAll();save();channelSheet();toast('Auf Standard zurückgesetzt')};
   $('#sL').onclick=()=>{loadTrack=t.id;$('#file').click()};
   $('#sR').onclick=async()=>{delete buffers[t.id];t.sample=null;await idbDel('s'+t.id);drawAll();save();channelSheet()};
@@ -1100,11 +1160,12 @@ function slotSheet(i){
   ${i?`<label>Name<input id="slN" type="text" maxlength="16" value="${esc(s.name)}"></label>`:''}
   ${s.fx.map((f,k)=>`<div class="fxRow"><button class="act ${f.on?'':'alt'}" data-on="${k}" aria-label="An oder aus">${f.on?'An':'Aus'}</button><button class="act alt" data-e="${k}">${FX[f.t].name}</button><button class="act alt" data-u="${k}" aria-label="Nach oben">↑</button><button class="act alt" data-x="${k}" aria-label="Entfernen">✕</button></div>`).join('')}
   ${canAdd?`<p style="margin-top:9px">Effekt hinzufügen</p><div class="row3">${Object.keys(FX).map(k=>`<button class="act alt" data-a="${k}">${FX[k].name}</button>`).join('')}</div>`:'<p>Mehr als 6 Effekte pro Slot gehen nicht.</p>'}
-  <div class="row"><button class="act alt" id="slR">Standard</button><button class="act" id="sC">Fertig</button></div>`);
+  <div class="bndC"><button class="chip${bound(b=>b.kind==='svol'&&b.slot===i)?' on':''}" id="slB">Lautstärke live binden</button></div><div class="row"><button class="act alt" id="slR">Standard</button><button class="act" id="sC">Fertig</button></div>`);
+  $('#slB').onclick=()=>bindSheet({kind:'svol',slot:i,min:0,max:1.25,step:.01,label:`Slot ${s.name}: Lautstärke`,short:s.name},()=>slotSheet(i));
   $('#slR').onclick=()=>{s.vol=.9;s.mute=false;s.fx=[];rebuildSlot(i);drawMixer();save();slotSheet(i);toast('Slot zurückgesetzt')};
   const ch=()=>{rebuildSlot(i);drawMixer();save();slotSheet(i)};
   if(i)$('#slN').onchange=e=>{s.name=e.target.value||s.name;drawMixer();save()};
-  $$('#sheet [data-a]').forEach(b=>b.onclick=async()=>{await resume();s.fx.push({t:b.dataset.a,on:true,p:FX[b.dataset.a].d()});ch();fxSheet(i,s.fx.length-1)});
+  $$('#sheet [data-a]').forEach(b=>b.onclick=async()=>{await resume();s.fx.push({id:uid(),t:b.dataset.a,on:true,p:FX[b.dataset.a].d()});ch();fxSheet(i,s.fx.length-1)});
   $$('#sheet [data-on]').forEach(b=>b.onclick=()=>{const f=s.fx[+b.dataset.on];f.on=!f.on;ch()});
   $$('#sheet [data-x]').forEach(b=>b.onclick=()=>{s.fx.splice(+b.dataset.x,1);ch()});
   $$('#sheet [data-u]').forEach(b=>b.onclick=()=>{const k=+b.dataset.u;if(k){[s.fx[k-1],s.fx[k]]=[s.fx[k],s.fx[k-1]];ch()}});
@@ -1123,7 +1184,8 @@ function fxSheet(i,k){
   if((f.t==='gate'||f.t==='half')&&!workletOK)h+=`<p>Dieser Effekt läuft in diesem Browser nicht. Nimm eine aktuelle Chrome-Version.</p>`;
   if(D.o)h+=`<label>${D.o[1]}<select id="fO">${D.o[2].map(o=>`<option value="${o[0]}"${P[D.o[0]]===o[0]?' selected':''}>${o[1]}</option>`).join('')}</select></label>`;
   const fxDef=D.d();(D.s||[]).forEach(s=>h+=`<label><span>${s[1]}: <span id="v_${s[0]}">${P[s[0]]}</span></span><input data-k="${s[0]}" data-def="${fxDef[s[0]]}" type="range" min="${s[2]}" max="${s[3]}" step="${s[4]}" value="${P[s[0]]}"></label>`);
-  h+=`<div class="row"><button class="act alt" id="fR">Standard</button><button class="act" id="fB">Zurück</button></div>`;openSheet(h);
+  ensureFxIds();h+=bindChips(f,i,k);h+=`<div class="row"><button class="act alt" id="fR">Standard</button><button class="act" id="fB">Zurück</button></div>`;openSheet(h);
+  wireChips(f,i,k);
   $('#fR').onclick=()=>{f.p=D.d();rebuildSlot(i);save();fxSheet(i,k);toast('Auf Standard zurückgesetzt')};
   $$('#sheet [data-k]').forEach(e=>e.oninput=()=>{P[e.dataset.k]=+e.value;$('#v_'+e.dataset.k).textContent=e.value;push()});
   if(D.o)$('#fO').onchange=e=>{P[D.o[0]]=e.target.value;push()};
@@ -1245,24 +1307,24 @@ function closeSheet(){padCtx=null;edStop();document.body.classList.remove('open'
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',2600)}
 function menuSheet(){
   openSheet(`<h2>Menü</h2><p>Änderungen werden automatisch auf diesem Gerät gespeichert.${idbOK?'':' Dieser Browser speichert hier nicht dauerhaft. Sichere dein Projekt deshalb als Datei.'}</p>
-  <div class="row"><button class="act full" id="mT">Farben</button><button class="act" id="mE">Projekt als Datei sichern</button><button class="act alt" id="mI">Projekt-Datei öffnen</button>
+  <div class="row"><button class="act full" id="mT">Farben</button><button class="act alt full" id="mP">Leistung</button><button class="act" id="mE">Projekt als Datei sichern</button><button class="act alt" id="mI">Projekt-Datei öffnen</button>
   ${window.TekkNative?`<button class="act alt full" id="mU">Nach Updates suchen (Version 1.${TekkNative.version()})</button>`:''}<button class="act alt full" id="mN">Neu anfangen</button><button class="act alt full" id="mQ">Fertig</button></div>`);
-  if(window.TekkNative)$('#mU').onclick=()=>checkUpdate(false);$('#mT').onclick=themeSheet;$('#mE').onclick=exportProject;$('#mI').onclick=()=>$('#projFile').click();$('#mQ').onclick=closeSheet;
+  if(window.TekkNative)$('#mU').onclick=()=>checkUpdate(false);$('#mT').onclick=themeSheet;$('#mP').onclick=perfSheet;$('#mE').onclick=exportProject;$('#mI').onclick=()=>$('#projFile').click();$('#mQ').onclick=closeSheet;
   $('#mN').onclick=()=>{openSheet(`<h2>Neu anfangen?</h2><p>Alle Pattern und geladenen Samples werden aus der App gelöscht. Sichere dein Projekt vorher als Datei, wenn du es behalten willst.</p><div class="row"><button class="act" id="nY">Alles löschen</button><button class="act alt" id="nN">Abbrechen</button></div>`);
     $('#nN').onclick=menuSheet;$('#nY').onclick=async()=>{for(const t of S.tracks){await idbDel('s'+t.id);delete buffers[t.id]}S=defaultState();sel=0;groupF=null;applyState();save();closeSheet();toast('Neues Projekt gestartet')}};
 }
 function applyState(){if(ctx){S.slots.forEach((_,i)=>{if(!slotN[i])makeSlot(i)});S.slots.forEach((_,i)=>rebuildSlot(i));S.tracks.forEach(wireTrack)}$('#bpm').textContent=S.bpm;queued=null;if(!tr(sel))sel=S.tracks[0].id;drawAll()}
 function refreshGrid(){drawSteps();if(view==='rv'){drawRack()}if(view==='ov')drawPiano()}
-function drawAll(){drawLive();drawPatBar();drawSteps();drawPads();drawGroups();drawRack();prSelect();drawPiano();drawSong();drawMixer()}
+function drawAll(){ensureFxIds();drawLive();drawPatBar();drawSteps();drawPads();drawGroups();drawRack();prSelect();drawPiano();drawSong();drawMixer()}
 function drawPlayhead(){
-  drawSteps();rackCells.forEach(a=>a.forEach(e=>e.classList.remove('ph')));
-  if(view==='rv'&&phPos>=0){const c=rackCells[S.songMode?phPos%(patLen(pat())):phPos];if(c)c.forEach(e=>e.classList.add('ph'))}
+  if(view==='lv')drawSteps();if(rackPh)rackPh.forEach(e=>e.classList.remove('ph'));rackPh=null;
+  if(view==='rv'&&phPos>=0){const c=rackCells[S.songMode?phPos%(patLen(pat())):phPos];if(c){c.forEach(e=>e.classList.add('ph'));rackPh=c}}
   const h=$('#prHead');if(view==='ov'&&phPos>=0){h.style.display='block';h.style.height=$('#prInner').offsetHeight+'px';h.style.transform=`translateX(${(phPos%patLen(pat()))*PR.w}px)`}else h.style.display='none';
   songCells.forEach(a=>a.forEach(e=>e.classList.remove('ph')));if(view==='sv'&&S.songMode&&phPos>=0){const c=songCells[Math.floor(phPos/BAR)];if(c)c.forEach(e=>e.classList.add('ph'))}
 }
 let pulse=0;const FL=()=>$$('#bg .l');let flE=null,lE=null;
 function beatFx(){if(!flE){flE=$('#bg .flash');lE=FL()}if(pulse<.01)return;pulse*=.86;flE.style.opacity=pulse*.8;lE.forEach(e=>e.style.opacity=.1+pulse*.75)}
-function frame(){requestAnimationFrame(frame);meters();beatFx();if(!ctx||!playing)return;const t=ctx.currentTime-(ctx.outputLatency||0);let ch=false;
+function frame(n){requestAnimationFrame(frame);perfTick(n||0);meters();beatFx();if(!ctx||!playing)return;const t=ctx.currentTime-(ctx.outputLatency||0);let ch=false;
   while(uiQ.length&&uiQ[0].t<=t){const q=uiQ.shift();if(q.redraw){drawAll();continue}phPos=q.p;ch=true;if(q.p%4===0)pulse=1;if(mode!=='note'&&view==='lv')q.hits.forEach(id=>$$(`.pad[data-id="${id}"]`).forEach(flash))}
   if(ch)drawPlayhead()}
 
@@ -1302,7 +1364,7 @@ function setView(v){view=v;if(v!=='rv'&&rackSel)rackEnd();if(v!=='lv')parkBlocks
 function holdBtn(e,on,off){e.addEventListener('pointerdown',async ev=>{ev.preventDefault();e.setPointerCapture&&e.setPointerCapture(ev.pointerId);await resume();e.classList.add('on');on()});['pointerup','pointercancel','lostpointercapture'].forEach(n=>e.addEventListener(n,()=>{e.classList.remove('on');off()}))}
 function bpmBtn(e,d){let h;const set=()=>{S.bpm=Math.min(260,Math.max(100,S.bpm+d));$('#bpm').textContent=S.bpm;if(ctx){echoDl.delayTime.value=stepDur()*LE.st;slotN.forEach(s=>s.fxn.forEach(f=>f.n&&f.n.set()));allTF()}save()};
   e.addEventListener('pointerdown',ev=>{ev.preventDefault();set();h=setTimeout(()=>h=setInterval(set,70),350)});['pointerup','pointercancel','pointerleave'].forEach(n=>e.addEventListener(n,()=>{clearTimeout(h);clearInterval(h)}))}
-$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;$('#liveAddV').onclick=presetSheet;$('#liveAddP').onclick=()=>addBlock('pads');$('#liveAddT').onclick=()=>addBlock('steps');$('#liveAddF').onclick=()=>addBlock('fx');$('#mixChk').onclick=mixCheck;$('#liveSize').onclick=areaSheet;
+$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;$('#liveAddBd').onclick=bindPick;$('#liveAddV').onclick=presetSheet;$('#liveAddP').onclick=()=>addBlock('pads');$('#liveAddT').onclick=()=>addBlock('steps');$('#liveAddF').onclick=()=>addBlock('fx');$('#mixChk').onclick=mixCheck;$('#liveSize').onclick=areaSheet;
 document.addEventListener('pointermove',e=>{if(rackDrag)rackPickAt(e.clientX,e.clientY);else if(rackLP)clearTimeoutIfMoved(e)},true);
 ['pointerup','pointercancel'].forEach(n=>document.addEventListener(n,()=>{clearTimeout(rackLP);rackLP=0;rackDrag=false},true));
 $('#rackScroll').addEventListener('touchmove',e=>{if(rackDrag)e.preventDefault()},{passive:false});
@@ -1346,7 +1408,7 @@ wirePiano();
   try{const j=await idbGet('theme2');if(j)TH=JSON.parse(j);await loadBg();const l=await idbGet('lib');if(l)LIB=JSON.parse(l);const lp=await idbGet('livep');if(lp)LIVEP=JSON.parse(lp);const s=await idbGet('state');if(s){const d=JSON.parse(s);if(d.patterns&&d.patterns.length)S=migrate(d)}}catch(e){}
   applyTheme();applyState();requestAnimationFrame(frame);checkUpdate(true)
 })();
-window.TEKK={get S(){return S},get ctx(){return ctx},get buffers(){return buffers},get builtin(){return builtin},get slotN(){return slotN},get workletOK(){return workletOK},get TH(){return TH},get sel(){return sel},get LIB(){return LIB},GALLERY,renderPatch};
+window.TEKK={get S(){return S},get ctx(){return ctx},get buffers(){return buffers},get builtin(){return builtin},get slotN(){return slotN},get workletOK(){return workletOK},get TH(){return TH},PERF,fill(){TEKK.S.slots.forEach((s,i)=>{s.fx.forEach(f=>f.p=FX[f.t].d());rebuildSlot(i)})},get voices(){return voices},get sel(){return sel},get LIB(){return LIB},GALLERY,renderPatch};
 
 </script>
 </body>

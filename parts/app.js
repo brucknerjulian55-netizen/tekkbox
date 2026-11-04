@@ -25,7 +25,7 @@ function defaultState(){
     slots:[mkSlot('Master'),mkSlot('Kick'),mkSlot('Bass'),mkSlot('Drums'),mkSlot('Melodie'),mkSlot('FX'),mkSlot('Slot 6'),mkSlot('Slot 7'),mkSlot('Slot 8')]};
 }
 function migrate(d){            /* Projekte aus Version 1 */
-  if(d.v===2){if(!d.live)d.live=[];return d}
+  if(d.v===2){if(!d.live)d.live=[];d.binds=d.binds||[];return d}
   const n=defaultState();n.bpm=d.bpm;n.cur=Math.min(d.cur||0,7);
   n.tracks.forEach(t=>Object.assign(t,d.tracks[t.id]||{}));
   n.patterns=d.patterns.map((p,i)=>{const q=newPat('Pattern '+'ABCDEFGH'[i]);p.forEach((a,t)=>a.forEach((v,s)=>{if(v!==null)(q.n[t]=q.n[t]||[]).push({s,n:v,l:1})}));return q});
@@ -166,7 +166,7 @@ function activeAt(p){
 const songEnd=()=>Math.max(BAR,...S.song.map(it=>it.b*BAR+patLen(S.patterns[it.p]||{bars:1})));
 function sched(){
   while(nextT<ctx.currentTime+.13){
-    const act=activeAt(pos),hits=[],d=stepDur();lastStep={t:nextT,s:pos};
+    const act=activeAt(pos),hits=[],d=stepDur();if(nextT<ctx.currentTime)PERF.late++;lastStep={t:nextT,s:pos};
     for(const t of S.tracks){
       if(roll&&t.id===sel)continue;
       const ns=[];for(const[P,st]of act)for(const x of P.n[t.id]||[])if(x.s===st)ns.push(x);
@@ -251,7 +251,7 @@ function fillSheet(){
   $('#fX').onclick=()=>{delete pat().n[t.id];refreshGrid();save();closeSheet()};$('#sC').onclick=closeSheet;
 }
 /* ---------- Channel Rack ---------- */
-let rackCells=[],rackSel=null,rackDrag=false,rackSkip=false,rackLP=0;
+let rackPh=null,rackCells=[],rackSel=null,rackDrag=false,rackSkip=false,rackLP=0;
 function rackMark(){$$('.rRow').forEach(r=>r.classList.toggle('picked',!!rackSel&&rackSel.has(+r.dataset.id)));const b=$('#rackSel');b.style.display=rackSel?'':'none';if(rackSel)$('#rsN').textContent=rackSel.size+' gewählt'}
 function rackEnd(){rackSel=null;rackDrag=false;rackMark()}
 function rackPickAt(x,y){const r=document.elementFromPoint(x,y),w=r&&r.closest&&r.closest('.rRow');if(w&&rackSel){rackSel.add(+w.dataset.id);rackMark()}}
@@ -286,9 +286,10 @@ function channelSheet(){
   <label>Start<input id="cSt" type="range" min="0" max="90" value="${(t.start||0)*100}" data-def="0"></label>
   <label>Länge<input id="sD" type="range" min="5" max="100" value="${t.len*100}" data-def="100"></label>
   <div class="colorRow"><span>Farbe</span><input id="cC" type="color" value="${t.color}"></div>
-  <div class="row"><button class="act alt" id="cR">Standard</button><button class="act alt" id="cD">Kanal löschen</button><button class="act full" id="sC">Fertig</button></div>`);
+  <div class="bndC"><button class="chip${bound(b=>b.kind==='tvol'&&b.tid===t.id)?' on':''}" id="cBv">Lautstärke live binden</button><button class="chip${bound(b=>b.kind==='tpan'&&b.tid===t.id)?' on':''}" id="cBp">Panorama live binden</button></div><div class="row"><button class="act alt" id="cR">Standard</button><button class="act alt" id="cD">Kanal löschen</button><button class="act full" id="sC">Fertig</button></div>`);
   if(padCtx){$('#cPd').onclick=()=>{const p=padCtx;padAssign(p.c,p.i)};$$('#cAct button').forEach(b=>b.onclick=()=>{const p=padCtx;p.c.acts=p.c.acts||[];p.c.acts[p.i]=b.dataset.v;t.mute=b.dataset.v==='holdo';drawPads();drawRack();save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y})}
   $('#cP2').onclick=()=>soundPicker('Sound für '+t.name,async(b,n)=>{await assignBuf(t,b,n);channelSheet();toast(n+' geladen')},channelSheet);
+  $('#cBv').onclick=()=>bindSheet({kind:'tvol',tid:t.id,min:0,max:1.2,step:.01,label:`Kanal ${t.name}: Lautstärke`,short:t.name},channelSheet);$('#cBp').onclick=()=>bindSheet({kind:'tpan',tid:t.id,min:-1,max:1,step:.01,label:`Kanal ${t.name}: Panorama`,short:'Pan '+t.name},channelSheet);
   $('#cR').onclick=()=>{Object.assign(t,{vol:.85,pan:0,tune:0,len:1,start:0});wireTrack(t);drawAll();save();channelSheet();toast('Auf Standard zurückgesetzt')};
   $('#sL').onclick=()=>{loadTrack=t.id;$('#file').click()};
   $('#sR').onclick=async()=>{delete buffers[t.id];t.sample=null;await idbDel('s'+t.id);drawAll();save();channelSheet()};
@@ -403,11 +404,12 @@ function slotSheet(i){
   ${i?`<label>Name<input id="slN" type="text" maxlength="16" value="${esc(s.name)}"></label>`:''}
   ${s.fx.map((f,k)=>`<div class="fxRow"><button class="act ${f.on?'':'alt'}" data-on="${k}" aria-label="An oder aus">${f.on?'An':'Aus'}</button><button class="act alt" data-e="${k}">${FX[f.t].name}</button><button class="act alt" data-u="${k}" aria-label="Nach oben">↑</button><button class="act alt" data-x="${k}" aria-label="Entfernen">✕</button></div>`).join('')}
   ${canAdd?`<p style="margin-top:9px">Effekt hinzufügen</p><div class="row3">${Object.keys(FX).map(k=>`<button class="act alt" data-a="${k}">${FX[k].name}</button>`).join('')}</div>`:'<p>Mehr als 6 Effekte pro Slot gehen nicht.</p>'}
-  <div class="row"><button class="act alt" id="slR">Standard</button><button class="act" id="sC">Fertig</button></div>`);
+  <div class="bndC"><button class="chip${bound(b=>b.kind==='svol'&&b.slot===i)?' on':''}" id="slB">Lautstärke live binden</button></div><div class="row"><button class="act alt" id="slR">Standard</button><button class="act" id="sC">Fertig</button></div>`);
+  $('#slB').onclick=()=>bindSheet({kind:'svol',slot:i,min:0,max:1.25,step:.01,label:`Slot ${s.name}: Lautstärke`,short:s.name},()=>slotSheet(i));
   $('#slR').onclick=()=>{s.vol=.9;s.mute=false;s.fx=[];rebuildSlot(i);drawMixer();save();slotSheet(i);toast('Slot zurückgesetzt')};
   const ch=()=>{rebuildSlot(i);drawMixer();save();slotSheet(i)};
   if(i)$('#slN').onchange=e=>{s.name=e.target.value||s.name;drawMixer();save()};
-  $$('#sheet [data-a]').forEach(b=>b.onclick=async()=>{await resume();s.fx.push({t:b.dataset.a,on:true,p:FX[b.dataset.a].d()});ch();fxSheet(i,s.fx.length-1)});
+  $$('#sheet [data-a]').forEach(b=>b.onclick=async()=>{await resume();s.fx.push({id:uid(),t:b.dataset.a,on:true,p:FX[b.dataset.a].d()});ch();fxSheet(i,s.fx.length-1)});
   $$('#sheet [data-on]').forEach(b=>b.onclick=()=>{const f=s.fx[+b.dataset.on];f.on=!f.on;ch()});
   $$('#sheet [data-x]').forEach(b=>b.onclick=()=>{s.fx.splice(+b.dataset.x,1);ch()});
   $$('#sheet [data-u]').forEach(b=>b.onclick=()=>{const k=+b.dataset.u;if(k){[s.fx[k-1],s.fx[k]]=[s.fx[k],s.fx[k-1]];ch()}});
@@ -426,7 +428,8 @@ function fxSheet(i,k){
   if((f.t==='gate'||f.t==='half')&&!workletOK)h+=`<p>Dieser Effekt läuft in diesem Browser nicht. Nimm eine aktuelle Chrome-Version.</p>`;
   if(D.o)h+=`<label>${D.o[1]}<select id="fO">${D.o[2].map(o=>`<option value="${o[0]}"${P[D.o[0]]===o[0]?' selected':''}>${o[1]}</option>`).join('')}</select></label>`;
   const fxDef=D.d();(D.s||[]).forEach(s=>h+=`<label><span>${s[1]}: <span id="v_${s[0]}">${P[s[0]]}</span></span><input data-k="${s[0]}" data-def="${fxDef[s[0]]}" type="range" min="${s[2]}" max="${s[3]}" step="${s[4]}" value="${P[s[0]]}"></label>`);
-  h+=`<div class="row"><button class="act alt" id="fR">Standard</button><button class="act" id="fB">Zurück</button></div>`;openSheet(h);
+  ensureFxIds();h+=bindChips(f,i,k);h+=`<div class="row"><button class="act alt" id="fR">Standard</button><button class="act" id="fB">Zurück</button></div>`;openSheet(h);
+  wireChips(f,i,k);
   $('#fR').onclick=()=>{f.p=D.d();rebuildSlot(i);save();fxSheet(i,k);toast('Auf Standard zurückgesetzt')};
   $$('#sheet [data-k]').forEach(e=>e.oninput=()=>{P[e.dataset.k]=+e.value;$('#v_'+e.dataset.k).textContent=e.value;push()});
   if(D.o)$('#fO').onchange=e=>{P[D.o[0]]=e.target.value;push()};
@@ -548,24 +551,24 @@ function closeSheet(){padCtx=null;edStop();document.body.classList.remove('open'
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',2600)}
 function menuSheet(){
   openSheet(`<h2>Menü</h2><p>Änderungen werden automatisch auf diesem Gerät gespeichert.${idbOK?'':' Dieser Browser speichert hier nicht dauerhaft. Sichere dein Projekt deshalb als Datei.'}</p>
-  <div class="row"><button class="act full" id="mT">Farben</button><button class="act" id="mE">Projekt als Datei sichern</button><button class="act alt" id="mI">Projekt-Datei öffnen</button>
+  <div class="row"><button class="act full" id="mT">Farben</button><button class="act alt full" id="mP">Leistung</button><button class="act" id="mE">Projekt als Datei sichern</button><button class="act alt" id="mI">Projekt-Datei öffnen</button>
   ${window.TekkNative?`<button class="act alt full" id="mU">Nach Updates suchen (Version 1.${TekkNative.version()})</button>`:''}<button class="act alt full" id="mN">Neu anfangen</button><button class="act alt full" id="mQ">Fertig</button></div>`);
-  if(window.TekkNative)$('#mU').onclick=()=>checkUpdate(false);$('#mT').onclick=themeSheet;$('#mE').onclick=exportProject;$('#mI').onclick=()=>$('#projFile').click();$('#mQ').onclick=closeSheet;
+  if(window.TekkNative)$('#mU').onclick=()=>checkUpdate(false);$('#mT').onclick=themeSheet;$('#mP').onclick=perfSheet;$('#mE').onclick=exportProject;$('#mI').onclick=()=>$('#projFile').click();$('#mQ').onclick=closeSheet;
   $('#mN').onclick=()=>{openSheet(`<h2>Neu anfangen?</h2><p>Alle Pattern und geladenen Samples werden aus der App gelöscht. Sichere dein Projekt vorher als Datei, wenn du es behalten willst.</p><div class="row"><button class="act" id="nY">Alles löschen</button><button class="act alt" id="nN">Abbrechen</button></div>`);
     $('#nN').onclick=menuSheet;$('#nY').onclick=async()=>{for(const t of S.tracks){await idbDel('s'+t.id);delete buffers[t.id]}S=defaultState();sel=0;groupF=null;applyState();save();closeSheet();toast('Neues Projekt gestartet')}};
 }
 function applyState(){if(ctx){S.slots.forEach((_,i)=>{if(!slotN[i])makeSlot(i)});S.slots.forEach((_,i)=>rebuildSlot(i));S.tracks.forEach(wireTrack)}$('#bpm').textContent=S.bpm;queued=null;if(!tr(sel))sel=S.tracks[0].id;drawAll()}
 function refreshGrid(){drawSteps();if(view==='rv'){drawRack()}if(view==='ov')drawPiano()}
-function drawAll(){drawLive();drawPatBar();drawSteps();drawPads();drawGroups();drawRack();prSelect();drawPiano();drawSong();drawMixer()}
+function drawAll(){ensureFxIds();drawLive();drawPatBar();drawSteps();drawPads();drawGroups();drawRack();prSelect();drawPiano();drawSong();drawMixer()}
 function drawPlayhead(){
-  drawSteps();rackCells.forEach(a=>a.forEach(e=>e.classList.remove('ph')));
-  if(view==='rv'&&phPos>=0){const c=rackCells[S.songMode?phPos%(patLen(pat())):phPos];if(c)c.forEach(e=>e.classList.add('ph'))}
+  if(view==='lv')drawSteps();if(rackPh)rackPh.forEach(e=>e.classList.remove('ph'));rackPh=null;
+  if(view==='rv'&&phPos>=0){const c=rackCells[S.songMode?phPos%(patLen(pat())):phPos];if(c){c.forEach(e=>e.classList.add('ph'));rackPh=c}}
   const h=$('#prHead');if(view==='ov'&&phPos>=0){h.style.display='block';h.style.height=$('#prInner').offsetHeight+'px';h.style.transform=`translateX(${(phPos%patLen(pat()))*PR.w}px)`}else h.style.display='none';
   songCells.forEach(a=>a.forEach(e=>e.classList.remove('ph')));if(view==='sv'&&S.songMode&&phPos>=0){const c=songCells[Math.floor(phPos/BAR)];if(c)c.forEach(e=>e.classList.add('ph'))}
 }
 let pulse=0;const FL=()=>$$('#bg .l');let flE=null,lE=null;
 function beatFx(){if(!flE){flE=$('#bg .flash');lE=FL()}if(pulse<.01)return;pulse*=.86;flE.style.opacity=pulse*.8;lE.forEach(e=>e.style.opacity=.1+pulse*.75)}
-function frame(){requestAnimationFrame(frame);meters();beatFx();if(!ctx||!playing)return;const t=ctx.currentTime-(ctx.outputLatency||0);let ch=false;
+function frame(n){requestAnimationFrame(frame);perfTick(n||0);meters();beatFx();if(!ctx||!playing)return;const t=ctx.currentTime-(ctx.outputLatency||0);let ch=false;
   while(uiQ.length&&uiQ[0].t<=t){const q=uiQ.shift();if(q.redraw){drawAll();continue}phPos=q.p;ch=true;if(q.p%4===0)pulse=1;if(mode!=='note'&&view==='lv')q.hits.forEach(id=>$$(`.pad[data-id="${id}"]`).forEach(flash))}
   if(ch)drawPlayhead()}
 
@@ -605,7 +608,7 @@ function setView(v){view=v;if(v!=='rv'&&rackSel)rackEnd();if(v!=='lv')parkBlocks
 function holdBtn(e,on,off){e.addEventListener('pointerdown',async ev=>{ev.preventDefault();e.setPointerCapture&&e.setPointerCapture(ev.pointerId);await resume();e.classList.add('on');on()});['pointerup','pointercancel','lostpointercapture'].forEach(n=>e.addEventListener(n,()=>{e.classList.remove('on');off()}))}
 function bpmBtn(e,d){let h;const set=()=>{S.bpm=Math.min(260,Math.max(100,S.bpm+d));$('#bpm').textContent=S.bpm;if(ctx){echoDl.delayTime.value=stepDur()*LE.st;slotN.forEach(s=>s.fxn.forEach(f=>f.n&&f.n.set()));allTF()}save()};
   e.addEventListener('pointerdown',ev=>{ev.preventDefault();set();h=setTimeout(()=>h=setInterval(set,70),350)});['pointerup','pointercancel','pointerleave'].forEach(n=>e.addEventListener(n,()=>{clearTimeout(h);clearInterval(h)}))}
-$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;$('#liveAddV').onclick=presetSheet;$('#liveAddP').onclick=()=>addBlock('pads');$('#liveAddT').onclick=()=>addBlock('steps');$('#liveAddF').onclick=()=>addBlock('fx');$('#mixChk').onclick=mixCheck;$('#liveSize').onclick=areaSheet;
+$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;$('#liveAddBd').onclick=bindPick;$('#liveAddV').onclick=presetSheet;$('#liveAddP').onclick=()=>addBlock('pads');$('#liveAddT').onclick=()=>addBlock('steps');$('#liveAddF').onclick=()=>addBlock('fx');$('#mixChk').onclick=mixCheck;$('#liveSize').onclick=areaSheet;
 document.addEventListener('pointermove',e=>{if(rackDrag)rackPickAt(e.clientX,e.clientY);else if(rackLP)clearTimeoutIfMoved(e)},true);
 ['pointerup','pointercancel'].forEach(n=>document.addEventListener(n,()=>{clearTimeout(rackLP);rackLP=0;rackDrag=false},true));
 $('#rackScroll').addEventListener('touchmove',e=>{if(rackDrag)e.preventDefault()},{passive:false});
@@ -649,4 +652,4 @@ wirePiano();
   try{const j=await idbGet('theme2');if(j)TH=JSON.parse(j);await loadBg();const l=await idbGet('lib');if(l)LIB=JSON.parse(l);const lp=await idbGet('livep');if(lp)LIVEP=JSON.parse(lp);const s=await idbGet('state');if(s){const d=JSON.parse(s);if(d.patterns&&d.patterns.length)S=migrate(d)}}catch(e){}
   applyTheme();applyState();requestAnimationFrame(frame);checkUpdate(true)
 })();
-window.TEKK={get S(){return S},get ctx(){return ctx},get buffers(){return buffers},get builtin(){return builtin},get slotN(){return slotN},get workletOK(){return workletOK},get TH(){return TH},get sel(){return sel},get LIB(){return LIB},GALLERY,renderPatch};
+window.TEKK={get S(){return S},get ctx(){return ctx},get buffers(){return buffers},get builtin(){return builtin},get slotN(){return slotN},get workletOK(){return workletOK},get TH(){return TH},PERF,fill(){TEKK.S.slots.forEach((s,i)=>{s.fx.forEach(f=>f.p=FX[f.t].d());rebuildSlot(i)})},get voices(){return voices},get sel(){return sel},get LIB(){return LIB},GALLERY,renderPatch};

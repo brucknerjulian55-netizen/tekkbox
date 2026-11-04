@@ -101,3 +101,5 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
 #bgP{width:min(52vw,200px);aspect-ratio:9/16;margin:0 auto 10px;overflow:hidden;position:relative;border:1px solid var(--line);touch-action:none;cursor:move;background:var(--body)}
 #bgP .im{position:absolute;inset:0;background-size:cover;pointer-events:none}
 #prCh{min-width:76px}
+.bndC{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.bndC .chip{height:auto;min-height:32px;padding:4px 10px;white-space:normal;text-align:left;border-radius:2px}
+.bnR{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 6px;align-items:center;background:var(--deep);padding:6px 8px;margin-bottom:4px}.bnR b{grid-column:1/-1;font-size:14px}.bnR span{font-size:13px;color:var(--dim)}
