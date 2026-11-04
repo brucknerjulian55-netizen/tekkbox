@@ -213,7 +213,8 @@ async function padDown(i,e){
   await resume();flash(e);
   if(mode==='note'){note=SCALE[i];const t=tr(sel);if(t){trigger(t,ctx.currentTime,note);record(sel,note)}drawPads();return}
   const t=padTracks()[i];if(!t)return;
-  if(mode==='mute'){t.mute=!t.mute;drawPads();save();return}
+  if(mode==='mute'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();save();return}
+  if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime);drawPads();const u=()=>{t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
   const ch=sel!==t.id;sel=t.id;trigger(t,ctx.currentTime,0);record(t.id,0);if(ch){drawPads();drawSteps()}
 }
 function setMode(m){mode=m;$$('.seg').forEach(b=>b.classList.toggle('on',b.dataset.m===m));drawPads()}
@@ -544,7 +545,7 @@ const unb64=s=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.lengt
 const REPO='brucknerjulian55-netizen/tekkbox';
 async function deliver(name,blob,share){
   const N=window.TekkNative;
-  if(N){const ab=await blob.arrayBuffer(),sz=1<<19;N.begin(name,blob.type||'application/json');for(let i=0;i<ab.byteLength;i+=sz)N.chunk(b64(ab.slice(i,i+sz)));N.finish(!!share);return true}
+  if(N){const ab=await blob.arrayBuffer(),sz=1<<19;N.begin(name,blob.type||'application/json');for(let i=0;i<ab.byteLength;i+=sz)N.chunk(b64(ab.slice(i,i+sz)));if(share){N.finish(true);return true}const r=N.saveDownload();if(r>=0)toast(`Gespeichert in Download/Tekkbox: ${name} (${Math.max(1,Math.round(r/1024))} KB)`);return true}
   const a=el('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.append(a);a.click();a.remove();return false}
 async function checkUpdate(silent){
   const N=window.TekkNative;if(!N)return;
@@ -554,11 +555,11 @@ async function checkUpdate(silent){
   catch(e){if(!silent)toast('Keine Verbindung. Prüfe dein Internet.')}}
 window.TekkBack=()=>{if(document.body.classList.contains('open')){closeSheet();return true}return false};
 async function exportProject(){const samples={};for(const t of S.tracks){const f=await idbGet('s'+t.id);if(f)samples[t.id]=b64(f)}
-  await deliver('tekkbox-projekt.json',new Blob([JSON.stringify({tekkbox:2,state:S,samples})],{type:'application/json'}),false);if(!window.TekkNative)toast('Projekt gesichert: tekkbox-projekt.json')}
+  const d=new Date(),P2=n=>String(n).padStart(2,'0'),nm=`tekkbox-${d.getFullYear()}-${P2(d.getMonth()+1)}-${P2(d.getDate())}_${P2(d.getHours())}-${P2(d.getMinutes())}.json`;try{await deliver(nm,new Blob([JSON.stringify({tekkbox:2,state:S,samples})],{type:'application/json'}),false);if(!window.TekkNative)toast('Projekt gesichert: '+nm)}catch(e){toast('Das Speichern ist fehlgeschlagen. Probiere es noch einmal.')}}
 async function importProject(file){
   try{const d=JSON.parse(await file.text());if(!d.tekkbox||!d.state||!d.state.patterns)throw 0;await resume();for(const t of S.tracks){await idbDel('s'+t.id);delete buffers[t.id]}S=migrate(d.state);
     for(const k of Object.keys(d.samples||{})){const ab=unb64(d.samples[k]);await idbSet('s'+k,ab);buffers[k]=await ctx.decodeAudioData(ab.slice(0))}applyState();save();closeSheet();toast('Projekt geöffnet')}
-  catch(e){toast('Diese Datei ist kein Tekkbox-Projekt.')}}
+  catch(e){toast(file.size===0?'Diese Datei ist leer (0 KB). Sie stammt von der alten Speicherfunktion.':'Diese Datei ist kein Tekkbox-Projekt.')}}
 async function loadSample(file){await resume();
   try{const ab=await file.arrayBuffer(),buf=await ctx.decodeAudioData(ab.slice(0)),t=tr(loadTrack);buffers[t.id]=buf;t.sample=file.name.replace(/\.[^.]+$/,'');await idbSet('s'+t.id,ab);drawAll();save();sel=t.id;trigger(t,ctx.currentTime,0);channelSheet();toast('Sample geladen')}
   catch(e){toast('Diese Datei lässt sich nicht lesen. Probiere WAV oder MP3.')}}
@@ -568,7 +569,7 @@ function setView(v){view=v;if(v!=='lv')parkBlocks();$$('.view').forEach(e=>e.cla
 function holdBtn(e,on,off){e.addEventListener('pointerdown',async ev=>{ev.preventDefault();e.setPointerCapture&&e.setPointerCapture(ev.pointerId);await resume();e.classList.add('on');on()});['pointerup','pointercancel','lostpointercapture'].forEach(n=>e.addEventListener(n,()=>{e.classList.remove('on');off()}))}
 function bpmBtn(e,d){let h;const set=()=>{S.bpm=Math.min(260,Math.max(100,S.bpm+d));$('#bpm').textContent=S.bpm;if(ctx){echoDl.delayTime.value=stepDur()*LE.st;slotN.forEach(s=>s.fxn.forEach(f=>f.n&&f.n.set()));allTF()}save()};
   e.addEventListener('pointerdown',ev=>{ev.preventDefault();set();h=setTimeout(()=>h=setInterval(set,70),350)});['pointerup','pointercancel','pointerleave'].forEach(n=>e.addEventListener(n,()=>{clearTimeout(h);clearInterval(h)}))}
-$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;$('#liveAddP').onclick=()=>addBlock('pads');$('#liveAddT').onclick=()=>addBlock('steps');$('#liveAddF').onclick=()=>addBlock('fx');$('#mixChk').onclick=mixCheck;
+$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;$('#liveAddV').onclick=presetSheet;$('#liveAddP').onclick=()=>addBlock('pads');$('#liveAddT').onclick=()=>addBlock('steps');$('#liveAddF').onclick=()=>addBlock('fx');$('#mixChk').onclick=mixCheck;
 $('#prFill').onclick=fillSheet;
 $('#rackWave').onclick=async()=>{await resume();const t=tr(sel);if(t)trigger(t,ctx.currentTime,0)};
 $('#go').onclick=async()=>{$('#hint').style.display='none';await resume()};
@@ -603,7 +604,7 @@ wirePiano();
 (async()=>{
   try{const j=localStorage.getItem('tekk-theme2');if(j)TH=JSON.parse(j)}catch(e){}
   await openDb();
-  try{const j=await idbGet('theme2');if(j)TH=JSON.parse(j);await loadBg();const l=await idbGet('lib');if(l)LIB=JSON.parse(l);const s=await idbGet('state');if(s){const d=JSON.parse(s);if(d.patterns&&d.patterns.length)S=migrate(d)}}catch(e){}
+  try{const j=await idbGet('theme2');if(j)TH=JSON.parse(j);await loadBg();const l=await idbGet('lib');if(l)LIB=JSON.parse(l);const lp=await idbGet('livep');if(lp)LIVEP=JSON.parse(lp);const s=await idbGet('state');if(s){const d=JSON.parse(s);if(d.patterns&&d.patterns.length)S=migrate(d)}}catch(e){}
   applyTheme();applyState();requestAnimationFrame(frame);checkUpdate(true)
 })();
 window.TEKK={get S(){return S},get ctx(){return ctx},get buffers(){return buffers},get builtin(){return builtin},get slotN(){return slotN},get workletOK(){return workletOK},get TH(){return TH},get sel(){return sel},get LIB(){return LIB},GALLERY,renderPatch};

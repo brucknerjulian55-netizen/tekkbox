@@ -1,6 +1,10 @@
 package app.tekkbox;
 
 import android.app.Activity;
+import android.content.ContentValues;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -29,6 +33,7 @@ public class MainActivity extends Activity {
   private WebView web;
   private ValueCallback<Uri[]> pick;
   private File out;
+  private static final String PEND = "pending";
   private String mime = "application/json";
 
   @Override protected void onCreate(Bundle b) {
@@ -86,10 +91,16 @@ public class MainActivity extends Activity {
       pick.onReceiveValue(res == RESULT_OK && d != null && d.getData() != null ? new Uri[]{d.getData()} : null);
       pick = null;
     } else if (req == SAVE && res == RESULT_OK && d != null && d.getData() != null) {
-      try (InputStream in = new FileInputStream(out); OutputStream o = getContentResolver().openOutputStream(d.getData())) {
-        byte[] buf = new byte[65536]; int n;
-        while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+      try (OutputStream o = getContentResolver().openOutputStream(d.getData())) {
+        copy(new File(new File(getCacheDir(), "out"), PEND), o);
       } catch (Exception e) { web.evaluateJavascript("toast('Die Datei konnte nicht gespeichert werden.')", null); }
+    }
+  }
+
+  private static void copy(File f, OutputStream o) throws Exception {
+    try (InputStream in = new FileInputStream(f)) {
+      byte[] buf = new byte[65536]; int n;
+      while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
     }
   }
 
@@ -102,14 +113,33 @@ public class MainActivity extends Activity {
       out = new File(dir, new File(name).getName()); mime = type; os = new FileOutputStream(out);
     }
     @JavascriptInterface public void chunk(String b64) throws Exception { os.write(Base64.decode(b64, Base64.DEFAULT)); }
+    /* Speichert direkt in Download/Tekkbox. Liefert die Dateigröße, oder -1 wenn der Dateidialog übernimmt. */
+    @JavascriptInterface public long saveDownload() throws Exception {
+      os.close();
+      long size = out.length();
+      if (size == 0) throw new Exception("leer");
+      if (Build.VERSION.SDK_INT >= 29) {
+        ContentValues v = new ContentValues();
+        v.put(MediaStore.Downloads.DISPLAY_NAME, out.getName());
+        v.put(MediaStore.Downloads.MIME_TYPE, mime);
+        v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Tekkbox");
+        Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+        if (u == null) throw new Exception("kein Ziel");
+        try (OutputStream o = getContentResolver().openOutputStream(u)) { copy(out, o); }
+        return size;
+      }
+      File p = new File(out.getParentFile(), PEND);
+      if (p.exists()) p.delete();
+      if (!out.renameTo(p)) throw new Exception("umbenennen");
+      startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE, out.getName()), SAVE);
+      return -1;
+    }
     @JavascriptInterface public void finish(boolean share) throws Exception {
       os.close();
       if (share) {
         Uri u = FileProvider.getUriForFile(MainActivity.this, "app.tekkbox.files", out);
         Intent i = new Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, u).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         startActivity(Intent.createChooser(i, "Teilen"));
-      } else {
-        startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE, out.getName()), SAVE);
       }
     }
   }

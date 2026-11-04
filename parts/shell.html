@@ -52,7 +52,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .pad.sel{border-color:var(--c)}.pad.muted{opacity:.35}
 .pad::before{content:"";position:absolute;inset:0;background:var(--c);opacity:var(--glow,0);pointer-events:none}
 .pad>*{position:relative}.pad.note{--c:var(--ice)}.pad.note b{font-size:22px}
-#mode{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;flex:none}
+#mode{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;flex:none}
 .seg{height:34px;border-radius:4px;background:var(--deepA);font-weight:700;font-size:15px}
 .seg.on{background:var(--hot);color:#fff}
 .faders{display:grid;grid-template-columns:2fr 1fr;gap:10px;flex:none}
@@ -218,7 +218,7 @@ input[type=file]{display:none}
       <div class="stepGrid" id="steps"></div>
       <div id="pads"></div>
       <div class="liveCol">
-        <div id="mode"><button class="seg on" data-m="play">Pads</button><button class="seg" data-m="note">Noten</button><button class="seg" data-m="mute">Stumm</button></div>
+        <div id="mode"><button class="seg on" data-m="play">Pads</button><button class="seg" data-m="note">Noten</button><button class="seg" data-m="mute">Stumm</button><button class="seg" data-m="hold">Halten</button></div>
         <div class="faders">
           <label class="fader"><span id="fLab">Filter</span><input id="filter" class="free" type="range" min="-100" max="100" value="0"></label>
           <label class="fader">Drive<input id="drive" class="free" type="range" min="0" max="100" value="25" data-def="25"></label>
@@ -238,7 +238,7 @@ input[type=file]{display:none}
     </div>
     <div class="view" id="sv"><p class="note">Wähle oben ein Pattern und tippe in eine Spur. Tippe nochmal, um es zu entfernen. Mit „Song“ oben spielst du das Arrangement ab.</p><div id="songScroll"></div></div>
     <div class="view" id="mv"><div id="mixTop"><button class="act" id="mixChk">Mix prüfen</button></div><div id="mixList"></div></div>
-    <div class="view on" id="lv"><div id="liveTop"><button class="mini" id="liveEditBtn">Bearbeiten</button><button class="mini liveAdd" id="liveAddP">+ Pads</button><button class="mini liveAdd" id="liveAddT">+ Schritte</button><button class="mini liveAdd" id="liveAddF">+ FX</button><button class="mini liveAdd" id="liveAddB">+ Knopf</button><button class="mini liveAdd" id="liveAddS">+ Slider</button><button class="mini liveAdd" id="liveAddK">+ Knob</button><button class="mini liveAdd" id="liveAddX">+ XY</button><button class="mini liveAdd" id="liveClear">Leeren</button></div><div id="liveArea"></div></div>
+    <div class="view on" id="lv"><div id="liveTop"><button class="mini" id="liveEditBtn">Bearbeiten</button><button class="mini liveAdd" id="liveAddP">+ Pads</button><button class="mini liveAdd" id="liveAddT">+ Schritte</button><button class="mini liveAdd" id="liveAddF">+ FX</button><button class="mini liveAdd" id="liveAddB">+ Knopf</button><button class="mini liveAdd" id="liveAddS">+ Slider</button><button class="mini liveAdd" id="liveAddK">+ Knob</button><button class="mini liveAdd" id="liveAddX">+ XY</button><button class="mini liveAdd" id="liveAddV">+ Vorlage</button><button class="mini liveAdd" id="liveClear">Leeren</button></div><div id="liveArea"></div></div>
     <div class="view" id="bv"><div id="bTabs"><button class="seg on" data-b="synth">Synth</button><button class="seg" data-b="lib">Sounds</button></div><div id="bSynth"></div><div id="bLib"></div></div>
   </div>
   <div id="nav">

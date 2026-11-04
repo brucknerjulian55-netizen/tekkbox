@@ -84,3 +84,6 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
 .edit .lc.block{outline:1px dashed var(--line);outline-offset:1px}.edit .lc.block>*:not(.lcR){pointer-events:none}.edit .lc.block{touch-action:none;cursor:move}
 .lc.block #pads{flex:1;min-height:0}.lc.block #steps{flex:1;min-height:0;grid-auto-rows:1fr}.lc.block .st{height:auto;min-height:0}.lc.block .faders,.lc.block .holds{flex:none}
 #pv{display:none!important}
+.lc.block{pointer-events:none}.lc.block>*{pointer-events:auto}.edit .lc.block{pointer-events:auto}
+.stp{display:grid;grid-template-columns:minmax(0,1fr) 46px 58px 46px;gap:4px;align-items:center;margin-bottom:6px;font-size:15px;font-weight:600}.stp b{text-align:center;font-variant-numeric:tabular-nums}.stp .act{min-height:40px;padding:0;font-size:20px}
+#liveTop .mini{flex:none!important}

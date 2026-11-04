@@ -1,6 +1,6 @@
 /* ---------- Liveplay: dein eigenes Instrument ---------- */
 let liveEdit=false;
-const LOOK={shape:'eck',look:'neon',fs:15,showL:true,hold:false,spring:null,dir:'auto',lo:0,hi:100,glow:60,textC:''};
+const LOOK={act:'play',shape:'eck',look:'neon',fs:15,showL:true,hold:false,spring:null,dir:'auto',lo:0,hi:100,glow:60,textC:''};
 const lv=(type,x,y,w,h,target,color)=>({id:Date.now()+Math.random(),type,x,y,w,h,target,color,label:'',...LOOK});
 function liveTargets(type){
   const r=[];
@@ -25,16 +25,21 @@ function sliderRange(tg){const a=String(tg).split(':');
 const rngGet=(c,t)=>{const r=sliderRange(t);if(!r)return.5;const u=(r.get()-r.min)/(r.max-r.min),lo=c.lo/100,hi=c.hi/100;return hi>lo?Math.max(0,Math.min(1,(u-lo)/(hi-lo))):u};
 const rngSet=(c,t,v)=>{const r=sliderRange(t);if(!r)return;v=Math.max(0,Math.min(1,v));let x=r.min+(c.lo/100+(c.hi-c.lo)/100*v)*(r.max-r.min);if(r.step)x=Math.round(x/r.step)*r.step;r.set(x)};
 function liveDown(c){const tg=c.target,a=tg.split(':');
-  if(a[0]==='hit'){const t=tr(+a[1]);if(t){trigger(t,ctx.currentTime,0);record(t.id,0)}}
-  else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;drawLive();drawPads();save()}}
+  if(a[0]==='hit'){const t=tr(+a[1]);if(!t)return;
+    if(c.act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}
+    else if(c.act==='holdm'){t.mute=true;choke(t.id,ctx.currentTime);liveMark()}
+    else if(c.act==='holdo'){t.mute=false;liveMark()}
+    else{trigger(t,ctx.currentTime,0);record(t.id,0)}}
+  else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}}
   else if(a[0]==='pat'){if(S.patterns[+a[1]])goPat(+a[1])}
   else if(a[0]==='roll')roll=+a[1];
   else if(tg==='echo')echoIn.gain.setTargetAtTime(.8,ctx.currentTime,.01);
   else if(tg==='play')togglePlay();
-  else if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];if(f){f.on=!f.on;rebuildSlot(+a[1]);drawLive();save()}}
+  else if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];if(f){f.on=!f.on;rebuildSlot(+a[1]);liveMark();save()}}
 }
-function liveUp(c){const a=c.target.split(':');if(a[0]==='roll')roll=0;else if(c.target==='echo'&&ctx)echoIn.gain.setTargetAtTime(0,ctx.currentTime,.02);else if(a[0]==='hit'&&c.hold&&ctx)choke(+a[1],ctx.currentTime)}
-function liveActive(c){const a=c.target.split(':');if(a[0]==='mute'){const t=tr(+a[1]);return t&&t.mute}if(a[0]==='pat')return S.cur===+a[1];if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];return f&&f.on}return false}
+const liveMark=()=>$$('#liveArea .lc').forEach(e=>e._c&&e.classList.toggle('act',!!liveActive(e._c)));
+function liveUp(c){const a=c.target.split(':');if(a[0]==='roll')roll=0;else if(c.target==='echo'&&ctx)echoIn.gain.setTargetAtTime(0,ctx.currentTime,.02);else if(a[0]==='hit'&&ctx){const t=tr(+a[1]);if(!t)return;if(c.act==='holdm'){t.mute=false;liveMark()}else if(c.act==='holdo'){t.mute=true;choke(t.id,ctx.currentTime);liveMark()}else if(c.act==='play'&&c.hold)choke(t.id,ctx.currentTime)}}
+function liveActive(c){const a=c.target.split(':');if(a[0]==='hit'&&c.act!=='play'){const t=tr(+a[1]);return t&&!t.mute}if(a[0]==='mute'){const t=tr(+a[1]);return t&&t.mute}if(a[0]==='pat')return S.cur===+a[1];if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];return f&&f.on}return false}
 function liveLabel(c){return c.label||(c.type==='xy'?targetName('val',c.tx)+' / '+targetName('val',c.ty):targetName(kindOf(c),c.target))}
 const BLK={pads:{t:'Pads',w:96,h:48,n:['#pads','#mode']},steps:{t:'Schritte',w:96,h:18,n:['#steps']},fx:{t:'Live-FX',w:96,h:24,n:['.faders','.holds']}};
 function parkBlocks(){const h=$('#pv');Object.values(BLK).forEach(B=>B.n.forEach(s=>h.append($(s))))}
@@ -44,7 +49,7 @@ function drawLive(){
   $$('.liveAdd').forEach(e=>e.style.display=liveEdit?'':'none');
   if(!S.live.length){const m=el('div','liveEmpty');m.innerHTML=liveEdit?'<b>Leg los</b><span>Füge oben dein erstes Element hinzu. Du kannst die Leiste zur Seite wischen.</span>':'<b>Dein Instrument</b><span>Tippe auf Bearbeiten und hol dir Pads, Schritte, FX, Knöpfe, Slider, Knobs oder XY-Kästen dazu. Alles spielt das, was im Rack steht.</span>';b.append(m)}
   S.live.forEach(c=>{Object.keys(LOOK).forEach(k=>{if(c[k]===undefined)c[k]=LOOK[k]});
-    const e=el('div',`lc ${c.type} sh-${c.shape} lk-${c.look}`+(liveActive(c)?' act':''));Object.assign(e.style,{left:c.x+'%',top:c.y+'%',width:c.w+'%',height:c.h+'%',fontSize:c.fs+'px'});e.style.setProperty('--c',c.color);e.style.setProperty('--g',c.glow/100);if(c.textC)e.style.color=c.textC;
+    const e=el('div',`lc ${c.type} sh-${c.shape} lk-${c.look}`+(liveActive(c)?' act':''));e._c=c;Object.assign(e.style,{left:c.x+'%',top:c.y+'%',width:c.w+'%',height:c.h+'%',fontSize:c.fs+'px'});e.style.setProperty('--c',c.color);e.style.setProperty('--g',c.glow/100);if(c.textC)e.style.color=c.textC;
     const vert=c.dir==='v'||(c.dir==='auto'&&c.h*b.clientHeight>c.w*b.clientWidth);
     if(c.type==='block'){BLK[c.block].n.forEach(s=>e.append($(s)));if(liveEdit)e.append(el('b','lcR'));wireLive(e,c);b.append(e);return}
     if(c.type==='xy'){const H=el('i','lcH'),V=el('i','lcV'),D=el('i','lcD');e.append(H,V,D);e._show=()=>{const x=rngGet(c,c.tx)*100,y=(1-rngGet(c,c.ty))*100;D.style.left=V.style.left=x+'%';D.style.top=H.style.top=y+'%'}}
@@ -78,15 +83,23 @@ function wireLive(e,c){
   e.addEventListener('pointerup',up);e.addEventListener('pointercancel',up);
   e.addEventListener('click',()=>{if(e._tap){e._tap=0;liveSheet(c)}});
 }
+const sizeRows=c=>[['w','Breite'],['h','Höhe'],['x','Links'],['y','Oben']].map(([k,l])=>`<div class="stp"><span>${l}</span><button class="act alt" data-z="${k}" data-d="-2" aria-label="${l} kleiner">−</button><b id="z${k}">${Math.round(c[k])} %</b><button class="act alt" data-z="${k}" data-d="2" aria-label="${l} größer">+</button></div>`).join('');
+function wireSize(c){$$('#sheet [data-z]').forEach(b=>{let h;const k=b.dataset.z,d=+b.dataset.d,step=()=>{const mx=k==='w'?100-c.x:k==='h'?100-c.y:k==='x'?100-c.w:100-c.h,mn=k==='w'?8:k==='h'?6:0;c[k]=Math.max(mn,Math.min(mx,c[k]+d));$('#z'+k).textContent=Math.round(c[k])+' %';drawLive();save()};
+  b.addEventListener('pointerdown',e=>{e.preventDefault();step();h=setTimeout(()=>h=setInterval(step,70),350)});['pointerup','pointercancel','pointerleave'].forEach(n=>b.addEventListener(n,()=>{clearTimeout(h);clearInterval(h)}))})}
+let LIVEP=[];const saveLP=()=>idbSet('livep',JSON.stringify(LIVEP));
+function savePreset(c){openSheet(`<h2>Als Vorlage speichern</h2><p>Die Vorlage steht dir in jedem Projekt unter „+ Vorlage“ bereit.</p><label>Name<input id="vN" type="text" maxlength="20" value="${esc(c.label||'Meine Vorlage')}"></label><div class="row"><button class="act" id="vS">Speichern</button><button class="act alt" id="sC">Abbrechen</button></div>`);$('#sC').onclick=()=>liveSheet(c);$('#vS').onclick=()=>{const{id,x,y,...rest}=c;LIVEP.push({...rest,pname:$('#vN').value.trim()||'Vorlage'});saveLP();toast('Vorlage gespeichert');liveSheet(c)}}
+function presetSheet(){openSheet(`<h2>Deine Vorlagen</h2>${LIVEP.length?'<p>Tippe eine Vorlage an, um sie auf die Fläche zu legen.</p>':'<p>Noch keine Vorlagen. Öffne ein Element und tippe auf „Als Vorlage speichern“.</p>'}<div class="pkGal">${LIVEP.map((p,i)=>`<div class="pkRow" style="grid-template-columns:minmax(0,1fr) 44px"><button class="lbN" data-p="${i}">${esc(p.pname)}</button><button class="lbP" data-x="${i}" aria-label="${esc(p.pname)} löschen">✕</button></div>`).join('')}</div><div class="row"><button class="act full" id="sC">Fertig</button></div>`);$('#sC').onclick=closeSheet;
+  $$('#sheet [data-p]').forEach(b=>b.onclick=()=>{const{pname,...p}=LIVEP[+b.dataset.p];S.live.push({...p,id:Date.now()+Math.random(),x:Math.round((100-p.w)/2),y:Math.round((100-p.h)/2)});drawLive();save();closeSheet()});
+  $$('#sheet [data-x]').forEach(b=>b.onclick=()=>{LIVEP.splice(+b.dataset.x,1);saveLP();presetSheet()})}
 const seg=(id,opts,val)=>`<div class="segRow" id="${id}">${opts.map(o=>`<button class="act ${o[0]===val?'sel':'alt'}" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`;
 function liveSheet(c){
-  if(c.type==='block'){openSheet(`<h2>${BLK[c.block].t}</h2><p>Spielt das, was im Rack steht. Änderungen hier gelten überall.</p><label><span>Breite: <span id="vw">${Math.round(c.w)}</span> %</span><input id="lW" type="range" min="20" max="100" step="2" value="${c.w}" data-def="${BLK[c.block].w}"></label><label><span>Höhe: <span id="vh">${Math.round(c.h)}</span> %</span><input id="lHt" type="range" min="8" max="100" step="2" value="${c.h}" data-def="${BLK[c.block].h}"></label><div class="row"><button class="act alt" id="lD">Entfernen</button><button class="act" id="sC">Fertig</button></div>`);$('#lW').oninput=e=>{c.w=+e.target.value;$('#vw').textContent=c.w;drawLive();save()};$('#lHt').oninput=e=>{c.h=+e.target.value;$('#vh').textContent=c.h;drawLive();save()};$('#lD').onclick=()=>{S.live=S.live.filter(x=>x!==c);drawLive();save();closeSheet()};$('#sC').onclick=closeSheet;return}
+  if(c.type==='block'){openSheet(`<h2>${BLK[c.block].t}</h2><p>Spielt das, was im Rack steht. Änderungen hier gelten überall.</p>${sizeRows(c)}<div class="row"><button class="act alt" id="lD">Entfernen</button><button class="act" id="sC">Fertig</button></div>`);wireSize(c);$('#lD').onclick=()=>{S.live=S.live.filter(x=>x!==c);drawLive();save();closeSheet()};$('#sC').onclick=closeSheet;return}
   const kind=kindOf(c),isHit=c.target&&c.target.startsWith('hit:'),opts=sel=>liveTargets(kind==='btn'?'btn':'val').map(o=>`<option value="${o[0]}"${o[0]===sel?' selected':''}>${esc(o[1])}</option>`).join('');
   openSheet(`<h2>${{btn:'Knopf',slider:'Slider',knob:'Knob',xy:'XY-Kasten'}[c.type]}</h2>
   ${c.type==='btn'?`<div class="row"><button class="act full" id="lS">Eigenen Sound auf diesen Knopf laden</button></div>`:''}
   ${c.type==='xy'?['tx','ty'].map((k,i)=>`<label>${i?'Y, hoch und runter':'X, links und rechts'}<select id="l${k}">${opts(c[k])}</select></label>`).join(''):`<label>Belegung<select id="lT">${opts(c.target)}</select></label>`}
   <label>Beschriftung<input id="lL" type="text" maxlength="18" value="${esc(c.label)}" placeholder="${esc(liveLabel({...c,label:''}))}"></label>
-  ${c.type==='btn'&&isHit?`<p>Beim Loslassen</p>${seg('lH',[[0,'Sound läuft weiter'],[1,'Sound stoppt']],c.hold?1:0)}`:''}
+  ${c.type==='btn'&&isHit?`<p>Was der Knopf macht</p><div class="segRow" id="lA" style="flex-wrap:wrap">${[['play','Sound anschlagen'],['toggle','Antippen: stumm an/aus'],['holdm','Halten: stumm'],['holdo','Halten: hörbar']].map(o=>`<button class="act ${c.act===o[0]?'sel':'alt'}" style="flex:1 1 45%" data-v="${o[0]}">${o[1]}</button>`).join('')}</div><p>${c.act==='play'?'Spielt den Sound einmal.':'Steuert den Kanal, der im Rack läuft. Der Knopf leuchtet, solange der Kanal zu hören ist.'}</p>${c.act==='play'?`<p>Beim Loslassen</p>${seg('lH',[[0,'Sound läuft weiter'],[1,'Sound stoppt']],c.hold?1:0)}`:''}`:''}
   ${c.type!=='btn'?`<p>Beim Loslassen</p>${seg('lSp',[['auto','Automatisch'],[1,'Zurückspringen'],[0,'Stehen bleiben']],c.spring===null?'auto':c.spring?1:0)}`:''}
   ${c.type==='slider'?`<p>Richtung</p>${seg('lDir',[['auto','Automatisch'],['h','Waagerecht'],['v','Senkrecht']],c.dir)}`:''}
   ${c.type!=='btn'?`<label><span>Bereich von: <span id="vlo">${c.lo}</span> %</span><input id="llo" type="range" min="0" max="100" value="${c.lo}" data-def="0"></label><label><span>Bereich bis: <span id="vhi">${c.hi}</span> %</span><input id="lhi" type="range" min="0" max="100" value="${c.hi}" data-def="100"></label>`:''}
@@ -97,16 +110,15 @@ function liveSheet(c){
   <div class="colorRow"><span>Schriftfarbe</span><input id="lTc" type="color" value="${c.textC||'#ffffff'}"></div>
   <label><span>Leuchten: <span id="vgl">${c.glow}</span> %</span><input id="lG" type="range" min="0" max="100" value="${c.glow}" data-def="60"></label>
   <label><span>Schriftgröße: <span id="vfs">${c.fs}</span></span><input id="lF" type="range" min="10" max="34" value="${c.fs}" data-def="15"></label>
-  <label><span>Breite: <span id="vw">${Math.round(c.w)}</span> %</span><input id="lW" type="range" min="8" max="100" step="2" value="${c.w}"></label>
-  <label><span>Höhe: <span id="vh">${Math.round(c.h)}</span> %</span><input id="lHt" type="range" min="6" max="100" step="2" value="${c.h}"></label>
-  <div class="row"><button class="act alt" id="lTx">${c.showL?'Text ausblenden':'Text einblenden'}</button><button class="act alt" id="lCp">Duplizieren</button><button class="act alt" id="lR">Standard</button><button class="act alt" id="lD">Löschen</button><button class="act full" id="sC">Fertig</button></div>`);
+  ${sizeRows(c)}
+  <div class="row"><button class="act alt" id="lTx">${c.showL?'Text ausblenden':'Text einblenden'}</button><button class="act alt" id="lCp">Duplizieren</button><button class="act alt" id="lVg">Als Vorlage speichern</button><button class="act alt" id="lFr">Nach vorne</button><button class="act alt" id="lR">Standard</button><button class="act alt" id="lD">Löschen</button><button class="act full" id="sC">Fertig</button></div>`);
   const chg=()=>{drawLive();save()},segOn=(id,f)=>$$(`#${id} button`).forEach(b=>b.onclick=()=>{f(b.dataset.v);chg();const t=$('#sheet').scrollTop;liveSheet(c);$('#sheet').scrollTop=t});
   if(c.type==='btn')$('#lS').onclick=()=>soundPicker('Sound für diesen Knopf',async(buf,name)=>{const t=await newChannel(buf,name,'Live');if(t){c.target='hit:'+t.id;if(!c.label)c.label=name.slice(0,18);chg();toast(name+' liegt auf dem Knopf')}liveSheet(c)},()=>liveSheet(c));
   if(c.type==='xy')['tx','ty'].forEach(k=>$('#l'+k).onchange=e=>{c[k]=e.target.value;chg()});else $('#lT').onchange=e=>{c.target=e.target.value;chg();liveSheet(c)};
   $('#lL').oninput=e=>{c.label=e.target.value;chg()};$('#lC').oninput=e=>{c.color=e.target.value;chg()};$('#lTc').oninput=e=>{c.textC=e.target.value;chg()};
-  const rg=(id,k,v)=>{const e=$('#'+id);if(e)e.oninput=()=>{c[k]=+e.value;$('#'+v).textContent=e.value;chg()}};rg('lG','glow','vgl');rg('lF','fs','vfs');rg('lW','w','vw');rg('lHt','h','vh');rg('llo','lo','vlo');rg('lhi','hi','vhi');
+  const rg=(id,k,v)=>{const e=$('#'+id);if(e)e.oninput=()=>{c[k]=+e.value;$('#'+v).textContent=e.value;chg()}};rg('lG','glow','vgl');rg('lF','fs','vfs');wireSize(c);$('#lVg').onclick=()=>savePreset(c);$('#lFr').onclick=()=>{S.live=S.live.filter(x=>x!==c);S.live.push(c);chg();toast('Liegt jetzt vorne')};rg('llo','lo','vlo');rg('lhi','hi','vhi');
   segOn('lSh',v=>c.shape=v);segOn('lLk',v=>c.look=v);
-  if($('#lH'))segOn('lH',v=>c.hold=v==='1');if($('#lSp'))segOn('lSp',v=>c.spring=v==='auto'?null:v==='1');if($('#lDir'))segOn('lDir',v=>c.dir=v);
+  if($('#lA'))segOn('lA',v=>{c.act=v;const t=tr(+c.target.split(':')[1]);if(t){t.mute=v==='holdo';drawPads();drawRack()}});if($('#lH'))segOn('lH',v=>c.hold=v==='1');if($('#lSp'))segOn('lSp',v=>c.spring=v==='auto'?null:v==='1');if($('#lDir'))segOn('lDir',v=>c.dir=v);
   $('#lTx').onclick=()=>{c.showL=!c.showL;chg();liveSheet(c)};
   $('#lCp').onclick=()=>{const d={...c,id:Date.now()+Math.random(),x:Math.min(100-c.w,c.x+3),y:Math.min(100-c.h,c.y+3)};S.live.push(d);chg();closeSheet()};
   $('#lR').onclick=()=>{Object.assign(c,LOOK,{label:''});chg();liveSheet(c)};
