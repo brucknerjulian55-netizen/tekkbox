@@ -104,3 +104,4 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
 .bndC{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.bndC .chip{height:auto;min-height:32px;padding:4px 10px;white-space:normal;text-align:left;border-radius:2px}
 .bnR{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 6px;align-items:center;background:var(--deep);padding:6px 8px;margin-bottom:4px}.bnR b{grid-column:1/-1;font-size:14px}.bnR span{font-size:13px;color:var(--dim)}
 .lg{position:absolute;background:var(--lit);box-shadow:0 0 6px var(--lit);pointer-events:none;z-index:9}.lgX{top:0;bottom:0;width:1px}.lgY{left:0;right:0;height:1px}
+#swapBar{display:flex;gap:6px;align-items:center;flex:none;background:var(--lit);color:var(--well);padding:5px 8px;font-size:14px}#swapBar b{flex:1;line-height:1.2}#swapBar .mini{height:32px;color:var(--ink)}
