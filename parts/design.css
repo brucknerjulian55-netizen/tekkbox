@@ -95,3 +95,8 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
 .edit .lc.block .padGrid,.edit .lc.block .pad{pointer-events:auto}
 #rackSel{display:flex;gap:4px;align-items:center;flex:none;overflow-x:auto}#rackSel b{margin-right:auto;font-size:14px;color:var(--lit);white-space:nowrap}#rackSel .mini{flex:none}
 .rRow.picked .rName{background:var(--lit);color:var(--well)}.rRow.picked{background:color-mix(in srgb,var(--lit) 14%,transparent)}
+
+.bgT{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.bgS{aspect-ratio:9/14;background-size:cover;background-position:center;background-color:var(--deep);border:1px solid var(--line);border-radius:2px;font-size:24px;color:var(--dim)}.bgS.on{border:2px solid var(--lit);box-shadow:0 0 12px var(--lit)}
+#bgP{width:min(52vw,200px);aspect-ratio:9/16;margin:0 auto 10px;overflow:hidden;position:relative;border:1px solid var(--line);touch-action:none;cursor:move;background:var(--body)}
+#bgP .im{position:absolute;inset:0;background-size:cover;pointer-events:none}

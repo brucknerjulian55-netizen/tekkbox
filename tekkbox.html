@@ -291,6 +291,11 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
 #rackSel{display:flex;gap:4px;align-items:center;flex:none;overflow-x:auto}#rackSel b{margin-right:auto;font-size:14px;color:var(--lit);white-space:nowrap}#rackSel .mini{flex:none}
 .rRow.picked .rName{background:var(--lit);color:var(--well)}.rRow.picked{background:color-mix(in srgb,var(--lit) 14%,transparent)}
 
+.bgT{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.bgS{aspect-ratio:9/14;background-size:cover;background-position:center;background-color:var(--deep);border:1px solid var(--line);border-radius:2px;font-size:24px;color:var(--dim)}.bgS.on{border:2px solid var(--lit);box-shadow:0 0 12px var(--lit)}
+#bgP{width:min(52vw,200px);aspect-ratio:9/16;margin:0 auto 10px;overflow:hidden;position:relative;border:1px solid var(--line);touch-action:none;cursor:move;background:var(--body)}
+#bgP .im{position:absolute;inset:0;background-size:cover;pointer-events:none}
+
 </style>
 </head>
 <body>
@@ -569,7 +574,9 @@ function liveActive(c){const a=c.target.split(':');if(a[0]==='hit'&&c.act!=='pla
 function liveLabel(c){return c.label||(c.type==='xy'?targetName('val',c.tx)+' / '+targetName('val',c.ty):targetName(kindOf(c),c.target))}
 const BLK={pads:{t:'Pads',w:96,h:48,n:['#mode']},steps:{t:'Schritte',w:96,h:18,n:['#steps']},fx:{t:'Live-FX',w:96,h:24,n:['.faders','.holds']}};
 function parkBlocks(){const h=$('#pv');Object.values(BLK).forEach(B=>B.n.forEach(s=>h.append($(s))))}
-function addBlock(k){if(k!=='pads'&&S.live.some(c=>c.block===k))return toast(BLK[k].t+' ist schon auf der Fläche.');const c=lv('block',2,2,BLK[k].w,BLK[k].h,'','#6a2ff0');c.block=k;const o=S.live.filter(x=>x.block==='pads').length;if(k==='pads')c.y=Math.min(100-c.h,2+o*4);S.live.push(c);drawLive();save()}
+const liveA=()=>S.area=S.area||{w:100,h:100,z:100};
+function fitNew(c){const A=liveA(),s=$('#liveScroll'),i=$('#liveArea');c.w=Math.min(100,c.w*100/A.w);c.h=Math.min(100,c.h*100/A.h);c.x=Math.max(0,Math.min(100-c.w,(s.scrollLeft+s.clientWidth/2)/i.clientWidth*100-c.w/2));c.y=Math.max(0,Math.min(100-c.h,(s.scrollTop+s.clientHeight/2)/i.clientHeight*100-c.h/2));return c}
+function addBlock(k){if(k!=='pads'&&S.live.some(c=>c.block===k))return toast(BLK[k].t+' ist schon auf der Fläche.');const c=lv('block',2,2,BLK[k].w,BLK[k].h,'','#6a2ff0');c.block=k;const o=S.live.filter(x=>x.block==='pads').length;fitNew(c);if(k==='pads')c.y=Math.min(100-c.h,c.y+o*3);S.live.push(c);drawLive();save()}
 function drawLive(){
   parkBlocks();if(view!=='lv')return;const b=$('#liveArea'),box=$('#liveScroll'),A=S.area=S.area||{w:100,h:100,z:100};b.style.width=box.clientWidth*A.w/100*A.z/100+'px';b.style.height=box.clientHeight*A.h/100*A.z/100+'px';let modeUsed=false;b.innerHTML='';b.classList.toggle('edit',liveEdit);$('#liveEditBtn').classList.toggle('on',liveEdit);$('#liveEditBtn').textContent=liveEdit?'Fertig':'Bearbeiten';
   $$('.liveAdd').forEach(e=>e.style.display=liveEdit?'':'none');
@@ -598,8 +605,8 @@ function wireLive(e,c){
     start=rngGet(c,c.target);kv=start;if(c.type==='knob'){mode='knob';return}mode='slide';slide(ev)});
   e.addEventListener('pointermove',ev=>{if(mode==='slide')return slide(ev);if(mode==='pad')return pad(ev);if(mode==='knob')return knob(ev);if(!mode)return;
     const dx=(ev.clientX-sx)/area.clientWidth*100,dy=(ev.clientY-sy)/area.clientHeight*100;if(Math.abs(dx)+Math.abs(dy)>1.2){moved=true;clearTimeout(lpT)}if(!moved)return;
-    const snap=v=>Math.round(v/2)*2;
-    if(mode==='move'){c.x=Math.max(0,Math.min(100-c.w,snap(ox+dx)));c.y=Math.max(0,Math.min(100-c.h,snap(oy+dy)))}else{c.w=Math.max(8,Math.min(100-c.x,snap(ow+dx)));c.h=Math.max(6,Math.min(100-c.y,snap(oh+dy)))}
+    const snap=v=>Math.round(v*2)/2;
+    if(mode==='move'){c.x=Math.max(0,Math.min(100-c.w,snap(ox+dx)));c.y=Math.max(0,Math.min(100-c.h,snap(oy+dy)))}else{c.w=Math.max(2,Math.min(100-c.x,snap(ow+dx)));c.h=Math.max(2,Math.min(100-c.y,snap(oh+dy)))}
     Object.assign(e.style,{left:c.x+'%',top:c.y+'%',width:c.w+'%',height:c.h+'%'})});
   const up=()=>{clearTimeout(lpT);if(liveEdit){if(mode==='move'&&!moved)e._tap=1;else if(mode){drawLive();save()}mode=null;return}
     if(c.type==='btn'){e.classList.remove('down');if(ctx)liveUp(c)}
@@ -610,22 +617,23 @@ function wireLive(e,c){
   e.addEventListener('click',()=>{if(e._tap){e._tap=0;if(c.type==='block'&&padI>=0)padEdit(c,padI);else liveSheet(c)}});
 }
 const sizeRows=c=>[['w','Breite'],['h','Höhe'],['x','Links'],['y','Oben']].map(([k,l])=>`<div class="stp"><span>${l}</span><button class="act alt" data-z="${k}" data-d="-2" aria-label="${l} kleiner">−</button><b id="z${k}">${Math.round(c[k])} %</b><button class="act alt" data-z="${k}" data-d="2" aria-label="${l} größer">+</button></div>`).join('');
-function wireSize(c){$$('#sheet [data-z]').forEach(b=>{let h;const k=b.dataset.z,d=+b.dataset.d,step=()=>{const mx=k==='w'?100-c.x:k==='h'?100-c.y:k==='x'?100-c.w:100-c.h,mn=k==='w'?8:k==='h'?6:0;c[k]=Math.max(mn,Math.min(mx,c[k]+d));$('#z'+k).textContent=Math.round(c[k])+' %';drawLive();save()};
+function wireSize(c){$$('#sheet [data-z]').forEach(b=>{let h;const k=b.dataset.z,d=+b.dataset.d,step=()=>{const A=liveA(),sc=100/(k==='w'||k==='x'?A.w:A.h),mx=k==='w'?100-c.x:k==='h'?100-c.y:k==='x'?100-c.w:100-c.h,mn=k==='w'||k==='h'?2:0;c[k]=Math.max(mn,Math.min(mx,c[k]+d*sc));$('#z'+k).textContent=Math.round(c[k])+' %';drawLive();save()};
   b.addEventListener('pointerdown',e=>{e.preventDefault();step();h=setTimeout(()=>h=setInterval(step,70),350)});['pointerup','pointercancel','pointerleave'].forEach(n=>b.addEventListener(n,()=>{clearTimeout(h);clearInterval(h)}))})}
 let LIVEP=[];const saveLP=()=>idbSet('livep',JSON.stringify(LIVEP));
-function savePreset(c){openSheet(`<h2>Als Vorlage speichern</h2><p>Die Vorlage steht dir in jedem Projekt unter „+ Vorlage“ bereit.</p><label>Name<input id="vN" type="text" maxlength="20" value="${esc(c.label||'Meine Vorlage')}"></label><div class="row"><button class="act" id="vS">Speichern</button><button class="act alt" id="sC">Abbrechen</button></div>`);$('#sC').onclick=()=>liveSheet(c);$('#vS').onclick=()=>{const{id,x,y,...rest}=c;LIVEP.push({...rest,pname:$('#vN').value.trim()||'Vorlage'});saveLP();toast('Vorlage gespeichert');liveSheet(c)}}
+function savePreset(c){openSheet(`<h2>Als Vorlage speichern</h2><p>Die Vorlage steht dir in jedem Projekt unter „+ Vorlage“ bereit.</p><label>Name<input id="vN" type="text" maxlength="20" value="${esc(c.label||'Meine Vorlage')}"></label><div class="row"><button class="act" id="vS">Speichern</button><button class="act alt" id="sC">Abbrechen</button></div>`);$('#sC').onclick=()=>liveSheet(c);$('#vS').onclick=()=>{const{id,x,y,...rest}=c,A=liveA();rest.w=c.w*A.w/100;rest.h=c.h*A.h/100;LIVEP.push({...rest,pname:$('#vN').value.trim()||'Vorlage'});saveLP();toast('Vorlage gespeichert');liveSheet(c)}}
 function presetSheet(){openSheet(`<h2>Deine Vorlagen</h2>${LIVEP.length?'<p>Tippe eine Vorlage an, um sie auf die Fläche zu legen.</p>':'<p>Noch keine Vorlagen. Öffne ein Element und tippe auf „Als Vorlage speichern“.</p>'}<div class="pkGal">${LIVEP.map((p,i)=>`<div class="pkRow" style="grid-template-columns:minmax(0,1fr) 44px"><button class="lbN" data-p="${i}">${esc(p.pname)}</button><button class="lbP" data-x="${i}" aria-label="${esc(p.pname)} löschen">✕</button></div>`).join('')}</div><div class="row"><button class="act full" id="sC">Fertig</button></div>`);$('#sC').onclick=closeSheet;
-  $$('#sheet [data-p]').forEach(b=>b.onclick=()=>{const{pname,...p}=LIVEP[+b.dataset.p];S.live.push({...p,id:Date.now()+Math.random(),x:Math.round((100-p.w)/2),y:Math.round((100-p.h)/2)});drawLive();save();closeSheet()});
+  $$('#sheet [data-p]').forEach(b=>b.onclick=()=>{const{pname,...p}=LIVEP[+b.dataset.p];S.live.push(fitNew({...p,id:Date.now()+Math.random()}));drawLive();save();closeSheet()});
   $$('#sheet [data-x]').forEach(b=>b.onclick=()=>{LIVEP.splice(+b.dataset.x,1);saveLP();presetSheet()})}
 let padCtx=null;
 function padEdit(c,i){const t=tr(c.ids[i]);if(!t)return padAssign(c,i);sel=t.id;padCtx={c,i};channelSheet()}
 function padAssign(c,i){openSheet(`<h2>Pad belegen</h2><p>Wähle einen Kanal aus dem Rack oder lade einen neuen Sound.</p><div class="row"><button class="act full" id="paN">Neuen Sound laden</button></div><div class="pkGal">${S.tracks.map(t=>`<button class="lbN" data-t="${t.id}">${esc(t.name)}</button>`).join('')}</div><div class="row"><button class="act alt" id="paX">Pad leeren</button><button class="act alt" id="sC">Abbrechen</button></div>`);
   $$('#sheet [data-t]').forEach(b=>b.onclick=()=>{c.ids[i]=+b.dataset.t;drawLive();save();closeSheet()});$('#paX').onclick=()=>{c.ids[i]=null;drawLive();save();closeSheet()};$('#sC').onclick=closeSheet;
   $('#paN').onclick=()=>soundPicker('Sound für dieses Pad',async(buf,name)=>{const t=await newChannel(buf,name,'Live');if(t){c.ids[i]=t.id;drawLive();save();toast(name+' liegt auf dem Pad')}closeSheet()},()=>padAssign(c,i))}
+function areaResize(k,nw){const A=liveA(),old=A[k];if(nw===old)return;A[k]=nw;if(k==='z')return;const f=old/nw,p=k==='w'?'x':'y';S.live.forEach(c=>{c[k]=Math.min(100,c[k]*f);c[p]=Math.max(0,Math.min(100-c[k],c[p]*f))})}
 function areaSheet(){const A=S.area=S.area||{w:100,h:100,z:100},R=[['w','Fläche Breite',100,400,25],['h','Fläche Höhe',100,400,25],['z','Ansicht',50,150,10]];
   openSheet(`<h2>Fläche</h2><p>Mach die Fläche größer und scrolle mit dem Finger über freie Stellen. Mit Ansicht siehst du mehr oder weniger davon auf einmal.</p>${R.map(r=>`<div class="stp"><span>${r[1]}</span><button class="act alt" data-a="${r[0]}" data-d="-1" aria-label="Kleiner">−</button><b id="a${r[0]}">${A[r[0]]} %</b><button class="act alt" data-a="${r[0]}" data-d="1" aria-label="Größer">+</button></div>`).join('')}<div class="row"><button class="act alt" id="aR">Standard</button><button class="act" id="sC">Fertig</button></div>`);
-  $$('#sheet [data-a]').forEach(b=>b.onclick=()=>{const r=R.find(x=>x[0]===b.dataset.a);A[r[0]]=Math.max(r[2],Math.min(r[3],A[r[0]]+r[4]*+b.dataset.d));$('#a'+r[0]).textContent=A[r[0]]+' %';drawLive();save()});
-  $('#aR').onclick=()=>{S.area={w:100,h:100,z:100};drawLive();save();areaSheet()};$('#sC').onclick=closeSheet}
+  $$('#sheet [data-a]').forEach(b=>b.onclick=()=>{const r=R.find(x=>x[0]===b.dataset.a);const k=r[0],old=A[k],nw=Math.max(r[2],Math.min(r[3],old+r[4]*+b.dataset.d));areaResize(k,nw);$('#a'+k).textContent=A[k]+' %';drawLive();save()});
+  $('#aR').onclick=()=>{areaResize('w',100);areaResize('h',100);A.z=100;drawLive();save();areaSheet()};$('#sC').onclick=closeSheet}
 const seg=(id,opts,val)=>`<div class="segRow" id="${id}">${opts.map(o=>`<button class="act ${o[0]===val?'sel':'alt'}" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`;
 function liveSheet(c){
   if(c.type==='block'){openSheet(`<h2>${BLK[c.block].t}</h2><p>Spielt das, was im Rack steht. Änderungen hier gelten überall.</p>${c.block==='pads'?['cols','rows'].map((k,i)=>`<div class="stp"><span>${i?'Reihen':'Spalten'}</span><button class="act alt" data-g="${k}" data-d="-1" aria-label="Weniger">−</button><b id="g${k}">${c[k]||(i?2:4)}</b><button class="act alt" data-g="${k}" data-d="1" aria-label="Mehr">+</button></div>`).join(''):''}${sizeRows(c)}<div class="row"><button class="act alt" id="lD">Entfernen</button><button class="act" id="sC">Fertig</button></div>`);wireSize(c);$$('#sheet [data-g]').forEach(b=>b.onclick=()=>{const k=b.dataset.g;c[k]=Math.max(1,Math.min(8,(c[k]||(k==='cols'?4:2))+ +b.dataset.d));$('#g'+k).textContent=c[k];drawLive();save()});$('#lD').onclick=()=>{S.live=S.live.filter(x=>x!==c);drawLive();save();closeSheet()};$('#sC').onclick=closeSheet;return}
@@ -659,7 +667,7 @@ function liveSheet(c){
   $('#lR').onclick=()=>{Object.assign(c,LOOK,{label:''});chg();liveSheet(c)};
   $('#lD').onclick=()=>{S.live=S.live.filter(x=>x!==c);chg();closeSheet()};$('#sC').onclick=closeSheet;
 }
-function addLive(type){const C={btn:['#ff2a6d',38,40,24,16],slider:['#22e6ff',20,44,60,12],knob:['#b14dff',38,38,24,16],xy:['#ff2a6d',20,28,60,34]}[type],c=lv(type,C[1],C[2],C[3],C[4],type==='btn'?'hit:'+sel:type==='xy'?'':'filter',C[0]);if(type==='xy'){c.tx='echot';c.ty='echof'}S.live.push(c);drawLive();save();if(type==='btn')liveSheet(c)}
+function addLive(type){const C={btn:['#ff2a6d',38,40,24,16],slider:['#22e6ff',20,44,60,12],knob:['#b14dff',38,38,24,16],xy:['#ff2a6d',20,28,60,34]}[type],c=lv(type,C[1],C[2],C[3],C[4],type==='btn'?'hit:'+sel:type==='xy'?'':'filter',C[0]);if(type==='xy'){c.tx='echot';c.ty='echof'}fitNew(c);S.live.push(c);drawLive();save();if(type==='btn')liveSheet(c)}
 function liveClearSheet(){openSheet(`<h2>Live-Fläche leeren?</h2><p>Alle Knöpfe, Slider, Knobs und XY-Kästen verschwinden. Deine Sounds bleiben.</p><div class="row"><button class="act" id="cY">Alles entfernen</button><button class="act alt" id="sC">Abbrechen</button></div>`);$('#cY').onclick=()=>{S.live=[];drawLive();save();closeSheet()};$('#sC').onclick=closeSheet}
 
 /* ---------- Mix-Check ---------- */
@@ -1184,20 +1192,36 @@ const THEMES={
  'Blutrot':{body:'#a30f14',deep:'#700a0d',well:'#3f0507',line:'#d9413f',ink:'#fff0ea',dim:'#efb0a6',lit:'#ffc61a',hot:'#ffffff',ice:'#ff8a3d'},
  'Tageslicht':{body:'#e7e5f5',deep:'#cbc7ec',well:'#fbfaff',line:'#9791d6',ink:'#160e6e',dim:'#4f4a96',lit:'#1b12c4',hot:'#d4116f',ice:'#00808f'}
 };
-let TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70},bgType='image/png',bgUrl=null;
-async function loadBg(){const ab=await idbGet('bgimg');if(bgUrl)URL.revokeObjectURL(bgUrl);bgUrl=ab?URL.createObjectURL(new Blob([ab],{type:bgType})):null;$('#bg .img').style.backgroundImage=bgUrl?`url(${bgUrl})`:'none'}
-function applyTheme(){const R=document.documentElement.style;Object.entries(TH.c).forEach(([k,v])=>R.setProperty('--'+k,v));const on=TH.bgOn&&bgUrl,op=(TH.bgOp??70)/100,A=Math.round((1-op*.65)*255).toString(16).padStart(2,'0');R.setProperty('--deepA',on?TH.c.deep+A:TH.c.deep);R.setProperty('--wellA',on?TH.c.well+A:TH.c.well);$('#bg .img').style.opacity=on?op:0;$('#bg .grid').style.display=on?'none':'';const m=$('meta[name=theme-color]');if(m)m.content=TH.c.body;if(view==='ov')drawPiano();saveTheme()}
+let TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70},bgUrl=null,BGS=[],bgUrls={};
+function bgStyle(e){const z=(TH.bgZ??100)/100,x=TH.bgX??50,y=TH.bgY??50;e.style.backgroundPosition=`${x}% ${y}%`;e.style.transformOrigin=`${x}% ${y}%`;e.style.transform=`scale(${z})`}
+function setBg(){bgUrl=(TH.bgOn&&bgUrls[TH.bgId])||null;$('#bg .img').style.backgroundImage=bgUrl?`url(${bgUrl})`:'none'}
+async function loadBg(){const m=await idbGet('bgs');BGS=m?JSON.parse(m):[];const old=await idbGet('bgimg');if(old&&!BGS.length){const id=Date.now();await idbSet('bg_'+id,old);BGS=[{id,type:'image/png'}];await idbSet('bgs',JSON.stringify(BGS));await idbDel('bgimg');TH.bgId=id}
+  for(const b of BGS){if(!bgUrls[b.id]){const ab=await idbGet('bg_'+b.id);if(ab)bgUrls[b.id]=URL.createObjectURL(new Blob([ab],{type:b.type}))}}setBg()}
+async function addBg(f){const id=Date.now();await idbSet('bg_'+id,await f.arrayBuffer());BGS.unshift({id,type:f.type});while(BGS.length>3){const o=BGS.pop();await idbDel('bg_'+o.id);if(bgUrls[o.id]){URL.revokeObjectURL(bgUrls[o.id]);delete bgUrls[o.id]}}await idbSet('bgs',JSON.stringify(BGS));Object.assign(TH,{bgId:id,bgOn:true,bgZ:100,bgX:50,bgY:50});await loadBg();applyTheme()}
+function bgSheet(){const pv=()=>{const e=$('#bgP .im');if(!e)return;e.style.backgroundImage=bgUrl?`url(${bgUrl})`:'none';bgStyle(e)};
+  openSheet(`<h2>Bild anpassen</h2><p>Ziehe das Bild in der Vorschau an die gewünschte Stelle.</p><div id="bgP"><div class="im"></div></div>
+  <label><span>Größe: <span id="bgZv">${TH.bgZ??100}</span> %</span><input id="bgZ" type="range" min="50" max="300" value="${TH.bgZ??100}" data-def="100"></label>
+  <label><span>Links, rechts: <span id="bgXv">${Math.round(TH.bgX??50)}</span> %</span><input id="bgXr" type="range" min="0" max="100" value="${TH.bgX??50}" data-def="50"></label>
+  <label><span>Oben, unten: <span id="bgYv">${Math.round(TH.bgY??50)}</span> %</span><input id="bgYr" type="range" min="0" max="100" value="${TH.bgY??50}" data-def="50"></label>
+  <div class="row"><button class="act alt" id="bgR">Standard</button><button class="act" id="bgB">Zurück</button></div>`);pv();
+  const up=()=>{applyTheme();pv()},P=$('#bgP');let d=null;
+  $('#bgZ').oninput=e=>{TH.bgZ=+e.target.value;$('#bgZv').textContent=TH.bgZ;up()};$('#bgXr').oninput=e=>{TH.bgX=+e.target.value;$('#bgXv').textContent=TH.bgX;up()};$('#bgYr').oninput=e=>{TH.bgY=+e.target.value;$('#bgYv').textContent=TH.bgY;up()};
+  P.onpointerdown=e=>{d=[e.clientX,e.clientY,TH.bgX??50,TH.bgY??50];P.setPointerCapture(e.pointerId)};P.onpointermove=e=>{if(!d)return;const r=P.getBoundingClientRect();TH.bgX=Math.max(0,Math.min(100,d[2]-(e.clientX-d[0])/r.width*100));TH.bgY=Math.max(0,Math.min(100,d[3]-(e.clientY-d[1])/r.height*100));$('#bgXr').value=TH.bgX;$('#bgYr').value=TH.bgY;$('#bgXv').textContent=Math.round(TH.bgX);$('#bgYv').textContent=Math.round(TH.bgY);up()};P.onpointerup=P.onpointercancel=()=>d=null;
+  $('#bgR').onclick=()=>{Object.assign(TH,{bgZ:100,bgX:50,bgY:50});applyTheme();bgSheet()};$('#bgB').onclick=themeSheet}
+function applyTheme(){const R=document.documentElement.style;Object.entries(TH.c).forEach(([k,v])=>R.setProperty('--'+k,v));const on=TH.bgOn&&bgUrl,op=(TH.bgOp??70)/100,A=Math.round((1-op*.65)*255).toString(16).padStart(2,'0');R.setProperty('--deepA',on?TH.c.deep+A:TH.c.deep);R.setProperty('--wellA',on?TH.c.well+A:TH.c.well);$('#bg .img').style.opacity=on?op:0;bgStyle($('#bg .img'));$('#bg .grid').style.display=on?'none':'';const m=$('meta[name=theme-color]');if(m)m.content=TH.c.body;if(view==='ov')drawPiano();saveTheme()}
 function saveTheme(){try{localStorage.setItem('tekk-theme2',JSON.stringify(TH))}catch(e){}idbSet('theme2',JSON.stringify(TH))}
 function themeSheet(){
   openSheet(`<h2>Farben</h2><p>Wähle ein Theme oder färbe jeden Bereich selbst.</p>
   <div class="row">${Object.entries(THEMES).map(([n,c])=>`<button class="act ${TH.name===n?'sel':'alt'}" data-t="${n}">${n}<span class="prev">${['body','deep','lit','hot','ice'].map(k=>`<i style="background:${c[k]}"></i>`).join('')}</span></button>`).join('')}</div>
   ${AREAS.map(([k,l])=>`<label class="colorRow"><span>${l}</span><input type="color" data-c="${k}" value="${TH.c[k]}"></label>`).join('')}
-  <h3>Hintergrundbild</h3><div class="row"><button class="act" id="bgL">Bild laden</button><button class="act alt" id="bgX">Bild entfernen</button></div>
+  <h3>Hintergrundbild</h3><div class="bgT">${[0,1,2].map(i=>{const b=BGS[i];return b?`<button class="bgS${TH.bgOn&&TH.bgId===b.id?' on':''}" data-b="${b.id}" style="background-image:url(${bgUrls[b.id]||''})" aria-label="Bild ${i+1} wählen"></button>`:`<button class="bgS leer" data-n="1" aria-label="Bild laden">+</button>`}).join('')}</div>
+  <div class="row"><button class="act" id="bgL">Neues Bild laden</button><button class="act alt" id="bgA">Bild anpassen</button><button class="act alt full" id="bgX">Kein Bild</button></div>
   <label><span>Sichtbarkeit: <span id="bgV">${TH.bgOp??70}</span> %</span><input id="bgO" type="range" min="10" max="100" value="${TH.bgOp??70}"></label>
   <div class="row"><button class="act alt" id="thR">Standard</button><button class="act" id="sC">Fertig</button></div>`);
-  $('#bgL').onclick=()=>$('#imgFile').click();$('#bgX').onclick=async()=>{await idbDel('bgimg');TH.bgOn=false;await loadBg();applyTheme();toast('Bild entfernt')};
+  $('#bgL').onclick=()=>$('#imgFile').click();$('#bgA').onclick=()=>bgUrl?bgSheet():toast('Wähle zuerst ein Bild.');$('#bgX').onclick=()=>{TH.bgOn=false;setBg();applyTheme();themeSheet()};
+  $$('#sheet [data-b]').forEach(b=>b.onclick=()=>{TH.bgId=+b.dataset.b;TH.bgOn=true;setBg();applyTheme();themeSheet()});$$('#sheet [data-n]').forEach(b=>b.onclick=()=>$('#imgFile').click());
   $('#bgO').oninput=e=>{TH.bgOp=+e.target.value;$('#bgV').textContent=e.target.value;applyTheme()};
-  $('#thR').onclick=async()=>{await idbDel('bgimg');TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70};await loadBg();applyTheme();themeSheet();toast('Farben zurückgesetzt')};
+  $('#thR').onclick=()=>{TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70};setBg();applyTheme();themeSheet();toast('Farben zurückgesetzt')};
   $$('#sheet [data-t]').forEach(b=>b.onclick=()=>{TH={...TH,name:b.dataset.t,c:{...THEMES[b.dataset.t]}};applyTheme();themeSheet()});
   $$('#sheet [data-c]').forEach(e=>e.oninput=()=>{TH.c[e.dataset.c]=e.value;TH.name='Eigenes';applyTheme()});
   $('#sC').onclick=closeSheet;
@@ -1290,7 +1314,7 @@ $('#libFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)impo
 $$('#bTabs .seg').forEach(b=>b.onclick=()=>{bTab=b.dataset.b;drawBuild()});
 let filePick=null;
 $('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(filePick){const c=filePick;filePick=null;c(f)}else loadSample(f)};
-$('#imgFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;await idbSet('bgimg',await f.arrayBuffer());bgType=f.type;TH.bgOn=true;await loadBg();applyTheme();if(document.body.classList.contains('open'))themeSheet();toast('Hintergrund geladen')};
+$('#imgFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;await addBg(f);if(document.body.classList.contains('open'))themeSheet();toast('Hintergrund geladen')};
 $('#projFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)importProject(f)};
 let lpT=0,lpX=0,lpY=0;const rstE=$('#rst'),hideRst=()=>{rstE.style.display='none';rstE._r=null};
 rstE.onclick=()=>{const r=rstE._r;if(r){r.value=r.dataset.def;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}));toast('Auf Standard zurückgesetzt')}hideRst()};

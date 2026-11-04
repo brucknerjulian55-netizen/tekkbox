@@ -496,20 +496,36 @@ const THEMES={
  'Blutrot':{body:'#a30f14',deep:'#700a0d',well:'#3f0507',line:'#d9413f',ink:'#fff0ea',dim:'#efb0a6',lit:'#ffc61a',hot:'#ffffff',ice:'#ff8a3d'},
  'Tageslicht':{body:'#e7e5f5',deep:'#cbc7ec',well:'#fbfaff',line:'#9791d6',ink:'#160e6e',dim:'#4f4a96',lit:'#1b12c4',hot:'#d4116f',ice:'#00808f'}
 };
-let TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70},bgType='image/png',bgUrl=null;
-async function loadBg(){const ab=await idbGet('bgimg');if(bgUrl)URL.revokeObjectURL(bgUrl);bgUrl=ab?URL.createObjectURL(new Blob([ab],{type:bgType})):null;$('#bg .img').style.backgroundImage=bgUrl?`url(${bgUrl})`:'none'}
-function applyTheme(){const R=document.documentElement.style;Object.entries(TH.c).forEach(([k,v])=>R.setProperty('--'+k,v));const on=TH.bgOn&&bgUrl,op=(TH.bgOp??70)/100,A=Math.round((1-op*.65)*255).toString(16).padStart(2,'0');R.setProperty('--deepA',on?TH.c.deep+A:TH.c.deep);R.setProperty('--wellA',on?TH.c.well+A:TH.c.well);$('#bg .img').style.opacity=on?op:0;$('#bg .grid').style.display=on?'none':'';const m=$('meta[name=theme-color]');if(m)m.content=TH.c.body;if(view==='ov')drawPiano();saveTheme()}
+let TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70},bgUrl=null,BGS=[],bgUrls={};
+function bgStyle(e){const z=(TH.bgZ??100)/100,x=TH.bgX??50,y=TH.bgY??50;e.style.backgroundPosition=`${x}% ${y}%`;e.style.transformOrigin=`${x}% ${y}%`;e.style.transform=`scale(${z})`}
+function setBg(){bgUrl=(TH.bgOn&&bgUrls[TH.bgId])||null;$('#bg .img').style.backgroundImage=bgUrl?`url(${bgUrl})`:'none'}
+async function loadBg(){const m=await idbGet('bgs');BGS=m?JSON.parse(m):[];const old=await idbGet('bgimg');if(old&&!BGS.length){const id=Date.now();await idbSet('bg_'+id,old);BGS=[{id,type:'image/png'}];await idbSet('bgs',JSON.stringify(BGS));await idbDel('bgimg');TH.bgId=id}
+  for(const b of BGS){if(!bgUrls[b.id]){const ab=await idbGet('bg_'+b.id);if(ab)bgUrls[b.id]=URL.createObjectURL(new Blob([ab],{type:b.type}))}}setBg()}
+async function addBg(f){const id=Date.now();await idbSet('bg_'+id,await f.arrayBuffer());BGS.unshift({id,type:f.type});while(BGS.length>3){const o=BGS.pop();await idbDel('bg_'+o.id);if(bgUrls[o.id]){URL.revokeObjectURL(bgUrls[o.id]);delete bgUrls[o.id]}}await idbSet('bgs',JSON.stringify(BGS));Object.assign(TH,{bgId:id,bgOn:true,bgZ:100,bgX:50,bgY:50});await loadBg();applyTheme()}
+function bgSheet(){const pv=()=>{const e=$('#bgP .im');if(!e)return;e.style.backgroundImage=bgUrl?`url(${bgUrl})`:'none';bgStyle(e)};
+  openSheet(`<h2>Bild anpassen</h2><p>Ziehe das Bild in der Vorschau an die gewünschte Stelle.</p><div id="bgP"><div class="im"></div></div>
+  <label><span>Größe: <span id="bgZv">${TH.bgZ??100}</span> %</span><input id="bgZ" type="range" min="50" max="300" value="${TH.bgZ??100}" data-def="100"></label>
+  <label><span>Links, rechts: <span id="bgXv">${Math.round(TH.bgX??50)}</span> %</span><input id="bgXr" type="range" min="0" max="100" value="${TH.bgX??50}" data-def="50"></label>
+  <label><span>Oben, unten: <span id="bgYv">${Math.round(TH.bgY??50)}</span> %</span><input id="bgYr" type="range" min="0" max="100" value="${TH.bgY??50}" data-def="50"></label>
+  <div class="row"><button class="act alt" id="bgR">Standard</button><button class="act" id="bgB">Zurück</button></div>`);pv();
+  const up=()=>{applyTheme();pv()},P=$('#bgP');let d=null;
+  $('#bgZ').oninput=e=>{TH.bgZ=+e.target.value;$('#bgZv').textContent=TH.bgZ;up()};$('#bgXr').oninput=e=>{TH.bgX=+e.target.value;$('#bgXv').textContent=TH.bgX;up()};$('#bgYr').oninput=e=>{TH.bgY=+e.target.value;$('#bgYv').textContent=TH.bgY;up()};
+  P.onpointerdown=e=>{d=[e.clientX,e.clientY,TH.bgX??50,TH.bgY??50];P.setPointerCapture(e.pointerId)};P.onpointermove=e=>{if(!d)return;const r=P.getBoundingClientRect();TH.bgX=Math.max(0,Math.min(100,d[2]-(e.clientX-d[0])/r.width*100));TH.bgY=Math.max(0,Math.min(100,d[3]-(e.clientY-d[1])/r.height*100));$('#bgXr').value=TH.bgX;$('#bgYr').value=TH.bgY;$('#bgXv').textContent=Math.round(TH.bgX);$('#bgYv').textContent=Math.round(TH.bgY);up()};P.onpointerup=P.onpointercancel=()=>d=null;
+  $('#bgR').onclick=()=>{Object.assign(TH,{bgZ:100,bgX:50,bgY:50});applyTheme();bgSheet()};$('#bgB').onclick=themeSheet}
+function applyTheme(){const R=document.documentElement.style;Object.entries(TH.c).forEach(([k,v])=>R.setProperty('--'+k,v));const on=TH.bgOn&&bgUrl,op=(TH.bgOp??70)/100,A=Math.round((1-op*.65)*255).toString(16).padStart(2,'0');R.setProperty('--deepA',on?TH.c.deep+A:TH.c.deep);R.setProperty('--wellA',on?TH.c.well+A:TH.c.well);$('#bg .img').style.opacity=on?op:0;bgStyle($('#bg .img'));$('#bg .grid').style.display=on?'none':'';const m=$('meta[name=theme-color]');if(m)m.content=TH.c.body;if(view==='ov')drawPiano();saveTheme()}
 function saveTheme(){try{localStorage.setItem('tekk-theme2',JSON.stringify(TH))}catch(e){}idbSet('theme2',JSON.stringify(TH))}
 function themeSheet(){
   openSheet(`<h2>Farben</h2><p>Wähle ein Theme oder färbe jeden Bereich selbst.</p>
   <div class="row">${Object.entries(THEMES).map(([n,c])=>`<button class="act ${TH.name===n?'sel':'alt'}" data-t="${n}">${n}<span class="prev">${['body','deep','lit','hot','ice'].map(k=>`<i style="background:${c[k]}"></i>`).join('')}</span></button>`).join('')}</div>
   ${AREAS.map(([k,l])=>`<label class="colorRow"><span>${l}</span><input type="color" data-c="${k}" value="${TH.c[k]}"></label>`).join('')}
-  <h3>Hintergrundbild</h3><div class="row"><button class="act" id="bgL">Bild laden</button><button class="act alt" id="bgX">Bild entfernen</button></div>
+  <h3>Hintergrundbild</h3><div class="bgT">${[0,1,2].map(i=>{const b=BGS[i];return b?`<button class="bgS${TH.bgOn&&TH.bgId===b.id?' on':''}" data-b="${b.id}" style="background-image:url(${bgUrls[b.id]||''})" aria-label="Bild ${i+1} wählen"></button>`:`<button class="bgS leer" data-n="1" aria-label="Bild laden">+</button>`}).join('')}</div>
+  <div class="row"><button class="act" id="bgL">Neues Bild laden</button><button class="act alt" id="bgA">Bild anpassen</button><button class="act alt full" id="bgX">Kein Bild</button></div>
   <label><span>Sichtbarkeit: <span id="bgV">${TH.bgOp??70}</span> %</span><input id="bgO" type="range" min="10" max="100" value="${TH.bgOp??70}"></label>
   <div class="row"><button class="act alt" id="thR">Standard</button><button class="act" id="sC">Fertig</button></div>`);
-  $('#bgL').onclick=()=>$('#imgFile').click();$('#bgX').onclick=async()=>{await idbDel('bgimg');TH.bgOn=false;await loadBg();applyTheme();toast('Bild entfernt')};
+  $('#bgL').onclick=()=>$('#imgFile').click();$('#bgA').onclick=()=>bgUrl?bgSheet():toast('Wähle zuerst ein Bild.');$('#bgX').onclick=()=>{TH.bgOn=false;setBg();applyTheme();themeSheet()};
+  $$('#sheet [data-b]').forEach(b=>b.onclick=()=>{TH.bgId=+b.dataset.b;TH.bgOn=true;setBg();applyTheme();themeSheet()});$$('#sheet [data-n]').forEach(b=>b.onclick=()=>$('#imgFile').click());
   $('#bgO').oninput=e=>{TH.bgOp=+e.target.value;$('#bgV').textContent=e.target.value;applyTheme()};
-  $('#thR').onclick=async()=>{await idbDel('bgimg');TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70};await loadBg();applyTheme();themeSheet();toast('Farben zurückgesetzt')};
+  $('#thR').onclick=()=>{TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70};setBg();applyTheme();themeSheet();toast('Farben zurückgesetzt')};
   $$('#sheet [data-t]').forEach(b=>b.onclick=()=>{TH={...TH,name:b.dataset.t,c:{...THEMES[b.dataset.t]}};applyTheme();themeSheet()});
   $$('#sheet [data-c]').forEach(e=>e.oninput=()=>{TH.c[e.dataset.c]=e.value;TH.name='Eigenes';applyTheme()});
   $('#sC').onclick=closeSheet;
@@ -602,7 +618,7 @@ $('#libFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)impo
 $$('#bTabs .seg').forEach(b=>b.onclick=()=>{bTab=b.dataset.b;drawBuild()});
 let filePick=null;
 $('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(filePick){const c=filePick;filePick=null;c(f)}else loadSample(f)};
-$('#imgFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;await idbSet('bgimg',await f.arrayBuffer());bgType=f.type;TH.bgOn=true;await loadBg();applyTheme();if(document.body.classList.contains('open'))themeSheet();toast('Hintergrund geladen')};
+$('#imgFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;await addBg(f);if(document.body.classList.contains('open'))themeSheet();toast('Hintergrund geladen')};
 $('#projFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)importProject(f)};
 let lpT=0,lpX=0,lpY=0;const rstE=$('#rst'),hideRst=()=>{rstE.style.display='none';rstE._r=null};
 rstE.onclick=()=>{const r=rstE._r;if(r){r.value=r.dataset.def;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}));toast('Auf Standard zurückgesetzt')}hideRst()};
