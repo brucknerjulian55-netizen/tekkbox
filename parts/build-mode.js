@@ -1,5 +1,5 @@
 /* ---------- Bau-Modus: Synthesizer, Galerie, Ordner, Packs ---------- */
-const PD={w1:'saw',lvl:1,w2:'saw',mix2:0,semi2:0,uni:1,spread:10,chord:'none',freq:55,penv:0,pt:.05,a:.001,d:.2,s:0,r:.02,len:.3,ft:'lowpass',cut:18000,res:.7,fe:0,fd:.1,n:0,nd:.1,nhp:1000,drive:0,click:0};
+const PD={w1:'saw',lvl:1,semi1:0,w2:'saw',mix2:0,semi2:0,uni:1,spread:10,chord:'none',freq:55,penv:0,pt:.05,a:.001,d:.2,s:0,r:.02,len:.3,ft:'lowpass',cut:18000,res:.7,fe:0,fd:.1,n:0,nd:.1,nhp:1000,drive:0,click:0};
 const CHORDS={none:[0],moll:[0,3,7],dur:[0,4,7],quinte:[0,7,12],moll7:[0,3,7,10],oktave:[0,12]};
 const WAVES={saw:'sawtooth',square:'square',sine:'sine',tri:'triangle'},WN={saw:'Säge',square:'Rechteck',sine:'Sinus',tri:'Dreieck'},CN={none:'Einzelton',moll:'Moll',dur:'Dur',quinte:'Quinte',moll7:'Moll 7',oktave:'Oktave'};
 const G=(name,cat,o)=>({name,cat,patch:{...PD,...o}});
@@ -31,7 +31,7 @@ const GALLERY=[
  G('Tekk Lead','Melodien',{w1:'saw',w2:'saw',mix2:.8,semi2:7,uni:5,spread:14,freq:220,a:.003,d:.3,s:.75,r:.08,len:.6,cut:5000,res:1.5,drive:30}),
  G('Sägen-Lead','Melodien',{w1:'saw',uni:7,spread:18,freq:220,a:.005,d:.2,s:.8,r:.1,len:.7,cut:8000})
 ];
-const SYN=[['Oszillatoren',[['lvl','Lautstärke Osz. 1',0,1,.01],['mix2','Lautstärke Osz. 2',0,1,.01],['semi2','Osz. 2 Halbtöne',-24,24,1],['uni','Stimmen',1,7,1],['spread','Verstimmung',0,50,1]]],
+const SYN=[['Oszillatoren',[['lvl','Lautstärke Osz. 1',0,1,.01],['semi1','Osz. 1 Halbtöne',-36,36,1],['mix2','Lautstärke Osz. 2',0,1,.01],['semi2','Osz. 2 Halbtöne',-36,36,1],['uni','Stimmen',1,7,1],['spread','Verstimmung',0,50,1]]],
  ['Tonhöhe',[['freq','Grundton (Hz)',30,880,1],['penv','Pitch-Hüllkurve',-48,60,1],['pt','Pitch-Zeit',.005,.4,.005]]],
  ['Lautstärke',[['a','Attack',.001,1,.001],['d','Decay',.01,2,.01],['s','Sustain',0,1,.01],['r','Release',.01,1,.01],['len','Länge (s)',.05,4,.01]]],
  ['Filter',[['cut','Frequenz (Hz)',40,18000,10],['res','Resonanz',.3,16,.1],['fe','Filter-Hüllkurve',0,6,.1],['fd','Filter-Zeit',.01,1,.01]]],
@@ -46,7 +46,7 @@ async function renderPatch(P,semi=0){
   const base=P.freq*Math.pow(2,semi/12),U=Math.max(1,P.uni|0);
   const osc=(wave,fr,level)=>{for(let u=0;u<U;u++){const o=c.createOscillator(),g=c.createGain(),p=c.createStereoPanner(),x=U>1?u/(U-1)*2-1:0;o.type=WAVES[wave];o.detune.value=x*P.spread;p.pan.value=x*.6;g.gain.value=level/Math.sqrt(U);
     o.frequency.setValueAtTime(Math.max(1,fr*Math.pow(2,P.penv/12)),0);if(P.penv)o.frequency.exponentialRampToValueAtTime(Math.max(1,fr),P.pt);o.connect(g).connect(p).connect(sum);o.start()}};
-  (CHORDS[P.chord]||[0]).forEach(iv=>{const fr=base*Math.pow(2,iv/12);if(P.lvl>0)osc(P.w1,fr,P.lvl);if(P.mix2>0)osc(P.w2,fr*Math.pow(2,P.semi2/12),P.mix2)});
+  (CHORDS[P.chord]||[0]).forEach(iv=>{const fr=base*Math.pow(2,iv/12);if(P.lvl>0)osc(P.w1,fr*Math.pow(2,(P.semi1||0)/12),P.lvl);if(P.mix2>0)osc(P.w2,fr*Math.pow(2,P.semi2/12),P.mix2)});
   amp.connect(end);
   const nz=(lvl,dec,hpf)=>{const n=c.createBufferSource(),h=c.createBiquadFilter(),g=c.createGain();n.buffer=noiseBuf(c,Math.min(len,dec+.02));h.type='highpass';h.frequency.value=hpf;g.gain.setValueAtTime(lvl,0);g.gain.exponentialRampToValueAtTime(.001,Math.min(len,dec));n.connect(h).connect(g).connect(end);n.start()};
   if(P.n>0)nz(P.n,P.nd,P.nhp);if(P.click>0)nz(P.click*.8,.012,2500);
@@ -60,12 +60,12 @@ function toWav(b){
   const d=[...Array(ch)].map((_,i)=>b.getChannelData(i));let p=44;for(let i=0;i<n;i++)for(let k=0;k<ch;k++){v.setInt16(p,Math.max(-1,Math.min(1,d[k][i]))*32767,true);p+=2}return o;
 }
 /* Bibliothek: gilt für alle Projekte */
-let LIB={folders:['Meine Sounds'],items:[],next:1},SP={...GALLERY[0].patch},spName=GALLERY[0].name,spBuf=null,bTab='synth',folder='Kicks',previewSrc=null,galCache={};
+let LIB={folders:['Meine Sounds'],items:[],next:1},SP={...GALLERY[0].patch},spBase={...GALLERY[0].patch},spName=GALLERY[0].name,spBuf=null,bTab='synth',folder='Kicks',previewSrc=null,galCache={};
 const CATS=[...new Set(GALLERY.map(g=>g.cat))];
 const saveLib=()=>idbSet('lib',JSON.stringify(LIB));
 function previewBuf(b){if(!ctx)return;try{previewSrc&&previewSrc.stop()}catch(e){}const s=ctx.createBufferSource();s.buffer=b;s.connect(slotN[0].in);s.start();previewSrc=s}
 async function assignBuf(t,buf,name){buffers[t.id]=buf;t.sample=name;await idbSet('s'+t.id,toWav(buf));drawAll();save()}
-async function newChannel(buf,name,cat){if(S.tracks.length>=MAXCH){toast('Mehr als '+MAXCH+' Kanäle gehen nicht.');return null}const d=DEF[0],t=mkTrack(S.nextId++,[name.slice(0,20),['#ffe600','#ff1f8f','#2df0ff','#b6ff3c','#ff8a1f'][S.tracks.length%5],5,null]);t.group=S.groups.includes(cat)?cat:null;S.tracks.push(t);wireTrack(t);await assignBuf(t,buf,name);sel=t.id;return t}
+async function newChannel(buf,name,cat){if(S.tracks.length>=MAXCH){toast('Mehr als '+MAXCH+' Kanäle gehen nicht.');return null}const t=mkTrack(S.nextId++,[name.slice(0,20),['#ffe600','#ff1f8f','#2df0ff','#b6ff3c','#ff8a1f'][S.tracks.length%5],5,null]);t.src='Kick';if(cat==='Live'&&!S.groups.includes('Live')){S.groups.push('Live')}t.group=S.groups.includes(cat)?cat:null;S.tracks.push(t);wireTrack(t);await assignBuf(t,buf,name);sel=t.id;return t}
 function drawBuild(){
   if(view!=='bv')return;$$('#bTabs .seg').forEach(b=>b.classList.toggle('on',b.dataset.b===bTab));$('#bSynth').style.display=bTab==='synth'?'':'none';$('#bLib').style.display=bTab==='lib'?'':'none';
   if(bTab==='synth')drawSynth();else drawLib();
@@ -74,13 +74,14 @@ function drawSynth(){
   const b=$('#bSynth');if(b.dataset.ok){syncSynth();return}b.dataset.ok=1;
   b.innerHTML=`<div class="prBar"><select id="syP" aria-label="Vorlage">${GALLERY.map((g,i)=>`<option value="${i}">${g.cat}: ${g.name}</option>`).join('')}</select></div>
   <canvas class="ed" id="syW" height="90"></canvas><div class="prBar" id="syNotes">${NOTE_NAMES.map((n,i)=>`<button class="mini" data-n="${SCALE[i]}">${n}</button>`).join('')}</div>
-  <div class="row2"><button class="key" id="syPlay">Anhören</button><button class="key" id="syCh">Auf Kanal</button><button class="key" id="sySave">Speichern</button></div>
+  <div class="row2"><button class="key" id="syPlay">Anhören</button><button class="key" id="syCh">Auf Kanal</button><button class="key" id="sySave">Speichern</button><button class="key" id="syRes">Standard</button></div>
   <div class="row2 sel2"><label class="fld">Oszillator 1<select id="syW1">${Object.keys(WAVES).map(w=>`<option value="${w}">${WN[w]}</option>`).join('')}</select></label><label class="fld">Oszillator 2<select id="syW2">${Object.keys(WAVES).map(w=>`<option value="${w}">${WN[w]}</option>`).join('')}</select></label><label class="fld">Akkord<select id="syC">${Object.keys(CHORDS).map(w=>`<option value="${w}">${CN[w]}</option>`).join('')}</select></label></div>
   ${SYN.map(([h,r])=>`<h3>${h}</h3><div class="syGrid">${r.map(s=>`<label class="fader"><span>${s[1]}: <b id="sv_${s[0]}"></b></span><input data-s="${s[0]}" type="range" min="${s[2]}" max="${s[3]}" step="${s[4]}"></label>`).join('')}</div>`).join('')}`;
   let t;const go=()=>{clearTimeout(t);t=setTimeout(()=>synthPlay(0),180)};
   $$('#bSynth [data-s]').forEach(e=>e.oninput=()=>{SP[e.dataset.s]=+e.value;$('#sv_'+e.dataset.s).textContent=e.value;spName='Eigener Sound';go()});
   $('#syW1').onchange=e=>{SP.w1=e.target.value;go()};$('#syW2').onchange=e=>{SP.w2=e.target.value;go()};$('#syC').onchange=e=>{SP.chord=e.target.value;go()};
-  $('#syP').onchange=e=>{const g=GALLERY[+e.target.value];SP={...g.patch};spName=g.name;syncSynth();synthPlay(0)};
+  $('#syRes').onclick=()=>{SP={...spBase};syncSynth();synthPlay(0);toast('Auf Standard zurückgesetzt')};
+  $('#syP').onchange=e=>{const g=GALLERY[+e.target.value];SP={...g.patch};spBase={...g.patch};spName=g.name;syncSynth();synthPlay(0)};
   $('#syPlay').onclick=()=>synthPlay(0);$$('#syNotes [data-n]').forEach(e=>e.onclick=()=>synthPlay(+e.dataset.n));
   $('#syCh').onclick=async()=>{await resume();const bf=await renderPatch(SP),t=tr(sel);if(t){await assignBuf(t,bf,spName);toast(spName+' liegt auf Kanal '+t.name)}};
   $('#sySave').onclick=saveSheet;syncSynth();resume().then(()=>renderPatch(SP)).then(x=>{spBuf=x;drawWave()});
@@ -95,6 +96,19 @@ function saveSheet(){
 }
 const libItems=()=>CATS.includes(folder)?GALLERY.filter(g=>g.cat===folder).map((g,i)=>({gal:GALLERY.indexOf(g),name:g.name,patch:g.patch})):LIB.items.filter(i=>i.folder===folder);
 async function itemBuf(it){await resume();if(it.gal!=null){if(!galCache[it.gal])galCache[it.gal]=await renderPatch(it.patch);return galCache[it.gal]}const ab=await idbGet('L'+it.id);return ctx.decodeAudioData(ab.slice(0))}
+function soundPicker(title,onPick,onBack){
+  let f=CATS.includes(folder)||LIB.folders.includes(folder)?folder:CATS[0];
+  const list=()=>CATS.includes(f)?GALLERY.filter(g=>g.cat===f).map(g=>({gal:GALLERY.indexOf(g),name:g.name,patch:g.patch})):LIB.items.filter(i=>i.folder===f);
+  const draw=()=>{openSheet(`<h2>${esc(title)}</h2><p>Wähle aus deinen gespeicherten Sounds oder der Galerie. ▶ hört rein.</p><div class="chips" style="margin-bottom:8px">${[...LIB.folders,...CATS].map(x=>`<button class="chip${x===f?' on':''}" data-f="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+    <div class="pkGal">${list().map((it,i)=>`<div class="pkRow"><button class="lbP" data-pl="${i}" aria-label="${esc(it.name)} anhören">▶</button><button class="lbN" data-t="${i}">${esc(it.name)}</button></div>`).join('')||'<p>Dieser Ordner ist leer.</p>'}</div>
+    <div class="row"><button class="act alt" id="pkF">Datei vom Handy</button><button class="act alt" id="pkB">Abbrechen</button></div>`);
+    $$('#sheet [data-f]').forEach(b=>b.onclick=()=>{f=b.dataset.f;draw()});
+    $$('#sheet [data-pl]').forEach(b=>b.onclick=async()=>previewBuf(await itemBuf(list()[+b.dataset.pl])));
+    $$('#sheet [data-t]').forEach(b=>b.onclick=async()=>{const it=list()[+b.dataset.t];onPick(await itemBuf(it),it.name)});
+    $('#pkF').onclick=()=>{filePick=async file=>{await resume();try{const ab=await file.arrayBuffer();onPick(await ctx.decodeAudioData(ab.slice(0)),file.name.replace(/\.[^.]+$/,''))}catch(e){toast('Diese Datei lässt sich nicht lesen. Probiere WAV oder MP3.')}};$('#file').click()};
+    $('#pkB').onclick=()=>onBack?onBack():closeSheet()};
+  resume().then(draw);
+}
 function drawLib(){
   const b=$('#bLib'),own=!CATS.includes(folder);b.innerHTML=`<div class="chips">${[...CATS,...LIB.folders].map(f=>`<button class="chip${f===folder?' on':''}" data-f="${esc(f)}">${esc(f)}</button>`).join('')}<button class="chip" id="fA">+ Ordner</button></div>
   <div class="libList">${libItems().map((it,i)=>`<div class="lb"><button class="lbP" data-pl="${i}" aria-label="${esc(it.name)} anhören">▶</button><button class="lbN" data-op="${i}">${esc(it.name)}</button></div>`).join('')||'<p class="note">Dieser Ordner ist leer. Baue im Synth einen Sound oder importiere eine Audio-Datei.</p>'}</div>
@@ -113,7 +127,7 @@ function itemSheet(it){
   $('#sC').onclick=closeSheet;
   $('#iC').onclick=async()=>{const t=tr(sel);await assignBuf(t,await itemBuf(it),it.name);closeSheet();toast(it.name+' liegt auf Kanal '+t.name)};
   $('#iN').onclick=async()=>{const t=await newChannel(await itemBuf(it),it.name,folder);if(t){closeSheet();toast('Neuer Kanal: '+t.name)}};
-  if(it.patch)$('#iE').onclick=()=>{SP={...PD,...it.patch};spName=it.name;bTab='synth';closeSheet();drawBuild()};
+  if(it.patch)$('#iE').onclick=()=>{SP={...PD,...it.patch};spBase={...SP};spName=it.name;bTab='synth';closeSheet();drawBuild()};
   if(own){
     $('#iR').onclick=()=>{openSheet(`<h2>Umbenennen</h2><label>Name<input id="rN" type="text" maxlength="24" value="${esc(it.name)}"></label><div class="row"><button class="act full" id="rS">Speichern</button></div>`);$('#rS').onclick=()=>{it.name=$('#rN').value.trim()||it.name;saveLib();closeSheet();drawLib()}};
     $('#iM').onclick=()=>{openSheet(`<h2>Ordner wechseln</h2><div class="row">${LIB.folders.map(f=>`<button class="act alt" data-m="${esc(f)}">${esc(f)}</button>`).join('')}</div>`);$$('#sheet [data-m]').forEach(b=>b.onclick=()=>{it.folder=b.dataset.m;saveLib();closeSheet();drawLib()})};

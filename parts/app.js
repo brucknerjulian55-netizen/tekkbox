@@ -2,9 +2,9 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const SCALE=[0,2,3,5,7,8,10,12],NOTE_NAMES=['A','H','C','D','E','F','G','A'],BAR=16,MAXCH=16,MAXPAT=32;
+const SCALE=[0,2,3,5,7,8,10,12],NOTE_NAMES=['A','H','C','D','E','F','G','A'],BAR=16,MAXCH=32,MAXPAT=32;
 const NN=['A','A#','H','C','C#','D','D#','E','F','F#','G','G#'],noteLabel=n=>NN[((n%12)+12)%12];
-const DEF=[['Kick','#ffe600',1,'Drums'],['Bass','#ff1f8f',2,'Bass'],['Clap','#2df0ff',3,'Drums'],['Hat','#b6ff3c',3,'Drums'],['Snare','#ff8a1f',3,'Drums'],['Stab','#2df0ff',4,'Melodie'],['Hoover','#ff1f8f',4,'Melodie'],['Riser','#ffe600',5,'FX']];
+const DEF=[['Kick','#ffe600',1,'Drums'],['Bass','#ff1f8f',2,'Bass'],['Clap','#2df0ff',3,'Drums'],['Hat','#b6ff3c',3,'Drums'],['Snare','#ff8a1f',3,'Drums'],['Stab','#2df0ff',4,'Melodie'],['Hoover','#ff1f8f',4,'Melodie'],['Riser','#ffe600',5,'FX'],['Melodie','#c77dff',4,'Melodie']];
 /*__SOUNDS__*/
 /*__BUILD__*/
 /*__LIVE__*/
@@ -20,14 +20,14 @@ function defaultState(){
   [a,b].forEach(p=>{put(p,0,K);put(p,1,O);put(p,3,O);put(p,2,C)});
   put(b,5,[0,3,8,11]);put(b,5,[6],3);put(b,5,[14],-2);
   put(c,3,O);put(c,2,C);put(c,6,[0,8]);put(d,0,K);put(d,1,O);put(d,4,[8,10,12,13,14,15]);put(d,7,[0]);
-  return{v:2,bpm:175,cur:0,nextId:8,songMode:false,patterns:[a,b,c,d],tracks:DEF.map((x,i)=>mkTrack(i,x)),
-    groups:['Drums','Bass','Melodie','FX'],song:[],live:defaultLive(),
+  return{v:2,bpm:175,cur:0,nextId:9,songMode:false,patterns:[a,b,c,d],tracks:[0,1,2,3,4,5,8,6,7].map(i=>mkTrack(i,DEF[i])),
+    groups:['Drums','Bass','Melodie','FX'],song:[],live:[],
     slots:[mkSlot('Master'),mkSlot('Kick'),mkSlot('Bass'),mkSlot('Drums'),mkSlot('Melodie'),mkSlot('FX'),mkSlot('Slot 6'),mkSlot('Slot 7'),mkSlot('Slot 8')]};
 }
 function migrate(d){            /* Projekte aus Version 1 */
-  if(d.v===2){if(!d.live)d.live=defaultLive();return d}
+  if(d.v===2){if(!d.live)d.live=[];return d}
   const n=defaultState();n.bpm=d.bpm;n.cur=Math.min(d.cur||0,7);
-  n.tracks.forEach((t,i)=>Object.assign(t,d.tracks[i]||{}));
+  n.tracks.forEach(t=>Object.assign(t,d.tracks[t.id]||{}));
   n.patterns=d.patterns.map((p,i)=>{const q=newPat('Pattern '+'ABCDEFGH'[i]);p.forEach((a,t)=>a.forEach((v,s)=>{if(v!==null)(q.n[t]=q.n[t]||[]).push({s,n:v,l:1})}));return q});
   return n;
 }
@@ -229,14 +229,15 @@ const FILLS={
  'Snare und Clap':[['Jedes 8. Feld (ab Feld 5)',i=>i%8===4],['Jedes 4. Feld',i=>i%4===0],['Wirbel am Taktende',i=>i%8===4||i%16>=12]],
  Hats:[['Offbeat, 2 nach der Kick',i=>i%4===2],['Jedes 2. Feld',i=>i%2===0],['Jedes Feld',()=>true],['Offbeat mit Extra',i=>i%4===2||i%8===7]],
  Bass:[['Offbeat, 2 nach der Kick',i=>i%4===2],['Rollend, 3 nach der Kick',i=>i%4!==0],['Galopp',i=>i%4>=2]],
- 'Stabs und Melodie':[['Offbeat, 2 nach der Kick',i=>i%4===2],['Hardtekk-Rhythmus',i=>[0,3,6,8,11,14].includes(i%16)],['Jeder Beat',i=>i%4===0],['Jedes 8. Feld',i=>i%8===0]]};
-function fillCat(t){const n=(t.name+' '+(t.sample||'')+' '+t.src).toLowerCase();return /kick/.test(n)?'Kick':/snare|clap/.test(n)?'Snare und Clap':/hat|shaker/.test(n)?'Hats':/bass|reese|sub/.test(n)?'Bass':'Stabs und Melodie'}
+ Stabs:[['Offbeat, 2 nach der Kick',i=>i%4===2],['Hardtekk-Rhythmus',i=>[0,3,6,8,11,14].includes(i%16)],['Jeder Beat',i=>i%4===0],['Jedes 8. Feld',i=>i%8===0]],
+ Melodie:[['Hymne',[[0,0,2],[2,0,1],[3,3,2],[6,0,1],[8,7,3],[11,5,1],[12,3,2],[14,2,2]]],['Aufsteigend',[0,3,5,7,8,7,5,3].map((n,i)=>[i*2,n,2])],['Arpeggio',[...Array(16)].map((_,i)=>[i,[0,3,7,12][i%4],1])],['Offbeat-Riff',[[2,0,2],[6,0,2],[10,3,2],[14,-2,2]]],['Treppe runter',[12,10,8,7,5,3,2,0].map((n,i)=>[i*2,n,2])]]};
+function fillCat(t){const n=(t.name+' '+(t.sample||'')+' '+t.src).toLowerCase();return /kick/.test(n)?'Kick':/snare|clap/.test(n)?'Snare und Clap':/hat|shaker/.test(n)?'Hats':/bass|reese|sub/.test(n)?'Bass':/stab|hoover/.test(n)?'Stabs':/lead|pluck|melod/.test(n)?'Melodie':'Stabs'}
 function fillSheet(){
   const t=tr(sel),c=fillCat(t),cats=[c,...Object.keys(FILLS).filter(k=>k!==c)];
   openSheet(`<h2>Muster für ${esc(t.name)}</h2><p>Füllt den Kanal im aktuellen Pattern aus. Vorhandene Noten dieses Kanals werden ersetzt.</p>
   ${cats.map(k=>`<p style="margin:9px 0 4px;font-weight:700">${k}</p><div class="row">${FILLS[k].map((f,i)=>`<button class="act ${k===c?'':'alt'}" data-c="${k}" data-i="${i}">${f[0]}</button>`).join('')}</div>`).join('')}
   <div class="row"><button class="act alt" id="fX">Kanal leeren</button><button class="act alt" id="sC">Fertig</button></div>`);
-  $$('#sheet [data-c]').forEach(b=>b.onclick=()=>{const P=pat(),o=P.n[t.id]||[],n=o.length?o[0].n:0,f=FILLS[b.dataset.c][+b.dataset.i][1],a=[];for(let s=0;s<patLen(P);s++)if(f(s))a.push({s,n,l:1});P.n[t.id]=a;refreshGrid();save();closeSheet();toast(FILLS[b.dataset.c][+b.dataset.i][0])});
+  $$('#sheet [data-c]').forEach(b=>b.onclick=()=>{const P=pat(),o=P.n[t.id]||[],n=o.length?o[0].n:0,f=FILLS[b.dataset.c][+b.dataset.i][1],a=[];if(Array.isArray(f)){for(let bar=0;bar<P.bars;bar++)f.forEach(x=>a.push({s:x[0]+bar*BAR,n:x[1],l:x[2],pr:1}))}else for(let s=0;s<patLen(P);s++)if(f(s))a.push({s,n,l:1});P.n[t.id]=a;refreshGrid();save();closeSheet();toast(FILLS[b.dataset.c][+b.dataset.i][0])});
   $('#fX').onclick=()=>{delete pat().n[t.id];refreshGrid();save();closeSheet()};$('#sC').onclick=closeSheet;
 }
 /* ---------- Channel Rack ---------- */
@@ -260,7 +261,7 @@ function channelSheet(){
   const t=tr(sel);if(!t)return;
   openSheet(`<h2>${esc(t.name)}</h2><p>${t.sample?'Dein Sample: '+esc(t.sample):'Eingebauter Sound: '+t.src}</p>
   <canvas class="ed" id="cW" height="90" aria-label="Waveform, tippen zum Abspielen"></canvas>
-  <div class="row"><button class="act" id="sL">Sample laden</button><button class="act alt" id="sR">Eingebauten Sound nutzen</button><button class="act full" id="cM">Muster einfüllen</button></div>
+  <div class="row"><button class="act" id="sL">Sample laden</button><button class="act alt" id="sR">Eingebauten Sound nutzen</button><button class="act full" id="cP2">Aus meinen Sounds laden</button><button class="act alt full" id="cM">Muster einfüllen</button></div>
   <label>Name<input id="cN" type="text" maxlength="20" value="${esc(t.name)}"></label>
   <div class="row"><label>Gruppe<select id="cG"><option value="">Keine</option>${S.groups.map(g=>`<option${g===t.group?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
   <label>Mixer-Slot<select id="cS">${S.slots.map((s,i)=>i?`<option value="${i}"${i===t.slot?' selected':''}>${i}: ${esc(s.name)}</option>`:'').join('')}</select></label></div>
@@ -270,7 +271,9 @@ function channelSheet(){
   <label>Start<input id="cSt" type="range" min="0" max="90" value="${(t.start||0)*100}"></label>
   <label>Länge<input id="sD" type="range" min="5" max="100" value="${t.len*100}"></label>
   <div class="colorRow"><span>Farbe</span><input id="cC" type="color" value="${t.color}"></div>
-  <div class="row"><button class="act alt" id="cD">Kanal löschen</button><button class="act" id="sC">Fertig</button></div>`);
+  <div class="row"><button class="act alt" id="cR">Standard</button><button class="act alt" id="cD">Kanal löschen</button><button class="act full" id="sC">Fertig</button></div>`);
+  $('#cP2').onclick=()=>soundPicker('Sound für '+t.name,async(b,n)=>{await assignBuf(t,b,n);channelSheet();toast(n+' geladen')},channelSheet);
+  $('#cR').onclick=()=>{Object.assign(t,{vol:.85,pan:0,tune:0,len:1,start:0});wireTrack(t);drawAll();save();channelSheet();toast('Auf Standard zurückgesetzt')};
   $('#sL').onclick=()=>{loadTrack=t.id;$('#file').click()};
   $('#sR').onclick=async()=>{delete buffers[t.id];t.sample=null;await idbDel('s'+t.id);drawAll();save();channelSheet()};
   $('#cN').oninput=e=>{t.name=e.target.value||t.src;drawRack();drawPads();save()};
@@ -365,9 +368,9 @@ function drawSong(){
 function drawMixer(){
   const b=$('#mixList');b.innerHTML='';S.slots.forEach((s,i)=>{
     const r=el('div','mx'),n=el('button','');n.style.textAlign='left';n.style.minWidth='0';n.innerHTML=`<span class="mxN" style="display:block">${i?i+': ':''}${esc(s.name)}</span><span class="mxF">${s.fx.length?s.fx.map(f=>FX[f.t].name).join(', '):'Keine Effekte'}</span>`;n.onclick=()=>slotSheet(i);
-    const f=el('input');f.type='range';f.min=0;f.max=125;f.value=s.vol*100;f.setAttribute('aria-label',s.name+' Lautstärke');f.oninput=()=>{s.vol=f.value/100;slotVol(i);save()};
+    const fb=el('label','fader mxL'),f=el('input');f.type='range';f.min=0;f.max=125;f.value=s.vol*100;f.setAttribute('aria-label',s.name+' Lautstärke');f.oninput=()=>{s.vol=f.value/100;slotVol(i);save()};fb.append(f);
     const m=el('button','mxM'+(s.mute?' on':''),'M');m.setAttribute('aria-label',s.name+' stumm');m.onclick=()=>{s.mute=!s.mute;slotVol(i);drawMixer();save()};
-    const t=el('div','mtr'),bar=el('i');bar.dataset.m=i;t.append(bar);r.append(n,f,m,t);b.append(r)})
+    const t=el('div','mtr'),bar=el('i');bar.dataset.m=i;t.append(bar);r.append(n,fb,m,t);b.append(r)})
 }
 function meters(){if(view!=='mv')return;const a=new Float32Array(512);$$('.mtr i').forEach(e=>{const s=slotN[+e.dataset.m];if(!s)return;s.an.getFloatTimeDomainData(a);let p=0;for(const x of a)p=Math.max(p,Math.abs(x));e.style.width=Math.min(100,p*100)+'%';e.style.background=p>=1?'var(--rec)':'var(--lit)'})}
 function slotSheet(i){
@@ -376,7 +379,8 @@ function slotSheet(i){
   ${i?`<label>Name<input id="slN" type="text" maxlength="16" value="${esc(s.name)}"></label>`:''}
   ${s.fx.map((f,k)=>`<div class="fxRow"><button class="act ${f.on?'':'alt'}" data-on="${k}" aria-label="An oder aus">${f.on?'An':'Aus'}</button><button class="act alt" data-e="${k}">${FX[f.t].name}</button><button class="act alt" data-u="${k}" aria-label="Nach oben">↑</button><button class="act alt" data-x="${k}" aria-label="Entfernen">✕</button></div>`).join('')}
   ${canAdd?`<p style="margin-top:9px">Effekt hinzufügen</p><div class="row3">${Object.keys(FX).map(k=>`<button class="act alt" data-a="${k}">${FX[k].name}</button>`).join('')}</div>`:'<p>Mehr als 6 Effekte pro Slot gehen nicht.</p>'}
-  <div class="row"><button class="act full" id="sC">Fertig</button></div>`);
+  <div class="row"><button class="act alt" id="slR">Standard</button><button class="act" id="sC">Fertig</button></div>`);
+  $('#slR').onclick=()=>{s.vol=.9;s.mute=false;s.fx=[];rebuildSlot(i);drawMixer();save();slotSheet(i);toast('Slot zurückgesetzt')};
   const ch=()=>{rebuildSlot(i);drawMixer();save();slotSheet(i)};
   if(i)$('#slN').onchange=e=>{s.name=e.target.value||s.name;drawMixer();save()};
   $$('#sheet [data-a]').forEach(b=>b.onclick=async()=>{await resume();s.fx.push({t:b.dataset.a,on:true,p:FX[b.dataset.a].d()});ch();fxSheet(i,s.fx.length-1)});
@@ -390,14 +394,15 @@ const fxNode=(i,k)=>slotN[i]&&slotN[i].fxn[k]&&slotN[i].fxn[k].n;
 function fxSheet(i,k){
   const f=S.slots[i].fx[k],D=FX[f.t],P=f.p,push=()=>{const n=fxNode(i,k);if(n)n.set();save()};
   let h=`<h2>${D.name}</h2>`;
-  if(f.t==='eq')h+=`<p>Ziehe die Punkte: links, rechts für die Frequenz, hoch, runter für die Lautstärke.</p><div class="row3">${Object.keys(EQP).map(n=>`<button class="act alt" data-q="${n}">${n}</button>`).join('')}</div><canvas class="ed" id="eqC" height="220"></canvas><div class="row"><label>Punkt <span id="eqN">1</span><select id="eqT">${EQT.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select></label><label><span>Breite (Q): <span id="eqQv"></span></span><input id="eqQ" type="range" min=".3" max="10" step=".1"></label></div>`;
+  if(f.t==='eq')h+=`<p>Ziehe die Punkte: links, rechts für die Frequenz, hoch, runter für die Lautstärke.</p><div class="row3">${Object.keys(EQP).map(n=>`<button class="act alt" data-q="${n}">${n}</button>`).join('')}</div><canvas class="ed" id="eqC" height="220"></canvas><div id="eqI"></div><div class="row"><label><span>Punkt <span id="eqN">1</span></span><select id="eqT">${EQT.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select></label><label><span>Breite (Q): <span id="eqQv"></span></span><input id="eqQ" type="range" min=".3" max="10" step=".1"></label></div>`;
   if(f.t==='gate')h+=`<p>Male die Kurve über einen Takt. Obere Zeile: Lautstärke. Untere Zeile: Zeitversatz, damit wird der Sound langsamer, stottert oder stoppt.</p><canvas class="ed" id="gaC" height="240"></canvas><div class="row3">${Object.keys(GATEP).map(n=>`<button class="act alt" data-p="${n}">${n}</button>`).join('')}</div>`;
   if(f.t==='delay')h+=`<p>Finger links, rechts: Zeit. Finger hoch, runter: Rückkopplung.</p><canvas class="ed" id="dlX" height="190"></canvas>`;
   if(f.t==='half')h+=`<p>Spielt die Melodie halb so schnell und springt am Ende jedes Abschnitts zurück.</p><div class="row"><button class="act ${P.keep?'':'alt'}" id="hK">Tonhöhe halten</button><button class="act ${P.keep?'alt':''}" id="hT">Oktave tiefer</button></div><label>Abschnitt<select id="hC"><option value="8"${P.cyc==8?' selected':''}>2 Beats</option><option value="16"${P.cyc==16?' selected':''}>1 Takt</option><option value="32"${P.cyc==32?' selected':''}>2 Takte</option></select></label>`;
   if((f.t==='gate'||f.t==='half')&&!workletOK)h+=`<p>Dieser Effekt läuft in diesem Browser nicht. Nimm eine aktuelle Chrome-Version.</p>`;
   if(D.o)h+=`<label>${D.o[1]}<select id="fO">${D.o[2].map(o=>`<option value="${o[0]}"${P[D.o[0]]===o[0]?' selected':''}>${o[1]}</option>`).join('')}</select></label>`;
   (D.s||[]).forEach(s=>h+=`<label><span>${s[1]}: <span id="v_${s[0]}">${P[s[0]]}</span></span><input data-k="${s[0]}" type="range" min="${s[2]}" max="${s[3]}" step="${s[4]}" value="${P[s[0]]}"></label>`);
-  h+=`<div class="row"><button class="act full" id="fB">Zurück</button></div>`;openSheet(h);
+  h+=`<div class="row"><button class="act alt" id="fR">Standard</button><button class="act" id="fB">Zurück</button></div>`;openSheet(h);
+  $('#fR').onclick=()=>{f.p=D.d();rebuildSlot(i);save();fxSheet(i,k);toast('Auf Standard zurückgesetzt')};
   $$('#sheet [data-k]').forEach(e=>e.oninput=()=>{P[e.dataset.k]=+e.value;$('#v_'+e.dataset.k).textContent=e.value;push()});
   if(D.o)$('#fO').onchange=e=>{P[D.o[0]]=e.target.value;push()};
   $('#fB').onclick=()=>{edStop();slotSheet(i)};
@@ -423,16 +428,17 @@ function eqEd(i,k,P,push){
   const c=$('#eqC'),{g,w,h}=sizeCanvas(c,220),C=prCol(),X=f=>Math.log(f/20)/Math.log(1000)*w,F=x=>20*Math.pow(1000,x/w),Y=d=>h/2-d/18*(h/2-10),D=y=>Math.max(-18,Math.min(18,(h/2-y)/(h/2-10)*18));
   const fq=new Float32Array(160).map((_,j)=>20*Math.pow(1000,j/159)),mag=new Float32Array(160),ph=new Float32Array(160),sl=slotN[i],spec=new Uint8Array(sl?sl.an.frequencyBinCount:0);
   const paint=()=>{edRaf=requestAnimationFrame(paint);if(!document.body.classList.contains('open')||!$('#eqC'))return edStop();g.clearRect(0,0,w,h);
-    g.strokeStyle=C('--deep');[100,1000,10000].forEach(f=>{g.beginPath();g.moveTo(X(f),0);g.lineTo(X(f),h);g.stroke()});g.beginPath();g.moveTo(0,h/2);g.lineTo(w,h/2);g.stroke();
+    g.font='600 10px sans-serif';g.strokeStyle=C('--deep');g.fillStyle=C('--dim');[[30,'30'],[60,'60'],[100,'100'],[200,'200'],[500,'500'],[1000,'1k'],[2000,'2k'],[5000,'5k'],[10000,'10k']].forEach(([f,l])=>{g.beginPath();g.moveTo(X(f),0);g.lineTo(X(f),h);g.stroke();g.fillText(l,X(f)+2,h-3)});[12,6,0,-6,-12].forEach(d=>{g.beginPath();g.moveTo(0,Y(d));g.lineTo(w,Y(d));g.stroke();g.fillText((d>0?'+':'')+d+' dB',w-36,Y(d)-2)});
     if(sl){sl.an.getByteFrequencyData(spec);g.fillStyle=C('--line');g.globalAlpha=.75;const ny=ctx.sampleRate/2;for(let j=0;j<100;j++){const f=20*Math.pow(1000,j/99),v=spec[Math.min(spec.length-1,Math.round(f/ny*spec.length))]/255;g.fillRect(j/99*w,h-v*h,w/99+1,v*h)}g.globalAlpha=1}
     const n=fxNode(i,k),tot=new Float32Array(160).fill(1);if(n&&n.b)n.b.forEach(b=>{b.getFrequencyResponse(fq,mag,ph);for(let j=0;j<160;j++)tot[j]*=mag[j]});
-    g.strokeStyle=C('--lit');g.lineWidth=2.5;g.beginPath();for(let j=0;j<160;j++){const y=Y(20*Math.log10(tot[j]));j?g.lineTo(j/159*w,y):g.moveTo(0,y)}g.stroke();g.lineWidth=1;
-    P.b.forEach((b,j)=>{g.fillStyle=C('--hot');g.beginPath();g.arc(X(b.f),Y(b.g),11,0,7);g.fill();g.fillStyle='#fff';g.font='700 13px sans-serif';g.fillText(j+1,X(b.f)-3.5,Y(b.g)+4.5)})};
-  edStop();paint();let hit=-1,cur=0;
-  eqPick=j=>{cur=j;const b=P.b[j];$('#eqN').textContent=j+1;$('#eqT').value=b.t||(j===0?'lowshelf':j===3?'highshelf':'peaking');$('#eqQ').value=b.q||1;$('#eqQv').textContent=b.q||1};eqPick(0);
-  $('#eqT').onchange=e=>{P.b[cur].t=e.target.value;push()};$('#eqQ').oninput=e=>{P.b[cur].q=+e.target.value;$('#eqQv').textContent=e.target.value;push()};
+    g.strokeStyle=C('--ice');g.lineWidth=2.5;g.beginPath();for(let j=0;j<160;j++){const y=Y(20*Math.log10(tot[j]));j?g.lineTo(j/159*w,y):g.moveTo(0,y)}g.stroke();g.lineWidth=1;
+    P.b.forEach((b,j)=>{const flat=b.t==='highpass'||b.t==='lowpass';g.fillStyle=j===cur?C('--lit'):C('--hot');g.beginPath();g.arc(X(b.f),Y(flat?0:b.g),11,0,7);g.fill();g.fillStyle='#fff';g.font='700 13px sans-serif';g.fillText(j+1,X(b.f)-3.5,Y(flat?0:b.g)+4.5)})};
+  const info=()=>{const b=P.b[cur],n=EQT.find(o=>o[0]===(b.t||'peaking'))[1],fl=b.t==='highpass'||b.t==='lowpass';$('#eqI').textContent=`Punkt ${cur+1}, ${n}: ${b.f>=1000?(b.f/1000).toFixed(2)+' kHz':b.f+' Hz'}${fl?'':', '+(b.g>0?'+':'')+b.g+' dB'}, Q ${b.q||1}`};
+  let hit=-1,cur=0;edStop();paint();
+  eqPick=j=>{cur=j;const b=P.b[j];$('#eqN').textContent=j+1;$('#eqT').value=b.t||(j===0?'lowshelf':j===3?'highshelf':'peaking');$('#eqQ').value=b.q||1;$('#eqQv').textContent=b.q||1;info()};eqPick(0);
+  $('#eqT').onchange=e=>{P.b[cur].t=e.target.value;push();info()};$('#eqQ').oninput=e=>{P.b[cur].q=+e.target.value;$('#eqQv').textContent=e.target.value;push();info()};
   c.onpointerdown=e=>{const r=c.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let best=1e9;hit=-1;P.b.forEach((b,j)=>{const d=Math.hypot(X(b.f)-x,Y(b.g)-y);if(d<best&&d<42){best=d;hit=j}});if(hit>=0){c.setPointerCapture(e.pointerId);eqPick(hit)}};
-  c.onpointermove=e=>{if(hit<0)return;const r=c.getBoundingClientRect();P.b[hit].f=Math.round(Math.max(20,Math.min(20000,F(e.clientX-r.left))));P.b[hit].g=Math.round(D(e.clientY-r.top)*2)/2;const n=fxNode(i,k);if(n)n.set()};
+  c.onpointermove=e=>{if(hit<0)return;const r=c.getBoundingClientRect();P.b[hit].f=Math.round(Math.max(20,Math.min(20000,F(e.clientX-r.left))));P.b[hit].g=Math.round(D(e.clientY-r.top)*2)/2;const n=fxNode(i,k);if(n)n.set();info()};
   c.onpointerup=c.onpointercancel=()=>{if(hit>=0)push();hit=-1};
 }
 
@@ -456,8 +462,11 @@ function patSheet(){
 }
 
 /* ---------- Farben ---------- */
-const AREAS=[['body','Hintergrund'],['deep','Knöpfe und Flächen'],['well','Tiefe Bereiche'],['line','Linien'],['ink','Text und Fenster'],['dim','Leiser Text'],['lit','Akzent Gelb'],['hot','Akzent Pink'],['ice','Akzent Türkis']];
+const AREAS=[['body','Hintergrund'],['deep','Knöpfe und Flächen'],['well','Tiefe Bereiche'],['line','Linien'],['ink','Text'],['dim','Leiser Text'],['lit','Akzent 1'],['hot','Akzent 2'],['ice','Akzent 3']];
 const THEMES={
+ 'Tekk-Neon':{body:'#07040f',deep:'#160a2c',well:'#0c0619',line:'#6a2ff0',ink:'#f6efff',dim:'#b49ad8',lit:'#ffd21f',hot:'#ff2a6d',ice:'#22e6ff'},
+ 'Säure':{body:'#050a05',deep:'#0f1f10',well:'#081208',line:'#3fae2a',ink:'#efffe6',dim:'#9fc79a',lit:'#d9ff00',hot:'#ff3d00',ice:'#00ffa2'},
+ 'Stroboskop':{body:'#000000',deep:'#161616',well:'#0a0a0a',line:'#6f6f6f',ink:'#ffffff',dim:'#b5b5b5',lit:'#ffffff',hot:'#ff0033',ice:'#ffffff'},
  'Elektro-Blau':{body:'#1b12c4',deep:'#120a8c',well:'#0a0558',line:'#4a40ea',ink:'#f4f2ff',dim:'#b4afee',lit:'#ffe600',hot:'#ff1f8f',ice:'#2df0ff'},
  'Studio-Grau':{body:'#3a4046',deep:'#2b3035',well:'#1d2125',line:'#5c656d',ink:'#eef1f3',dim:'#a6b0b8',lit:'#ff9f2d',hot:'#ff5a36',ice:'#6fd3c7'},
  'Laser-Pink':{body:'#c40f6c',deep:'#8a0a4c',well:'#4e0529',line:'#f04b9e',ink:'#fff0f7',dim:'#f4b4d3',lit:'#fff14d',hot:'#2b0bff',ice:'#42f5d4'},
@@ -465,15 +474,21 @@ const THEMES={
  'Blutrot':{body:'#a30f14',deep:'#700a0d',well:'#3f0507',line:'#d9413f',ink:'#fff0ea',dim:'#efb0a6',lit:'#ffc61a',hot:'#ffffff',ice:'#ff8a3d'},
  'Tageslicht':{body:'#e7e5f5',deep:'#cbc7ec',well:'#fbfaff',line:'#9791d6',ink:'#160e6e',dim:'#4f4a96',lit:'#1b12c4',hot:'#d4116f',ice:'#00808f'}
 };
-let TH={name:'Elektro-Blau',c:{...THEMES['Elektro-Blau']}};
-function applyTheme(){Object.entries(TH.c).forEach(([k,v])=>document.documentElement.style.setProperty('--'+k,v));const m=$('meta[name=theme-color]');if(m)m.content=TH.c.body;if(view==='ov')drawPiano();saveTheme()}
-function saveTheme(){try{localStorage.setItem('tekk-theme',JSON.stringify(TH))}catch(e){}idbSet('theme',JSON.stringify(TH))}
+let TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70},bgType='image/png',bgUrl=null;
+async function loadBg(){const ab=await idbGet('bgimg');if(bgUrl)URL.revokeObjectURL(bgUrl);bgUrl=ab?URL.createObjectURL(new Blob([ab],{type:bgType})):null;$('#bg .img').style.backgroundImage=bgUrl?`url(${bgUrl})`:'none'}
+function applyTheme(){const R=document.documentElement.style;Object.entries(TH.c).forEach(([k,v])=>R.setProperty('--'+k,v));const on=TH.bgOn&&bgUrl,op=(TH.bgOp??70)/100,A=Math.round((1-op*.65)*255).toString(16).padStart(2,'0');R.setProperty('--deepA',on?TH.c.deep+A:TH.c.deep);R.setProperty('--wellA',on?TH.c.well+A:TH.c.well);$('#bg .img').style.opacity=on?op:0;$('#bg .grid').style.display=on?'none':'';const m=$('meta[name=theme-color]');if(m)m.content=TH.c.body;if(view==='ov')drawPiano();saveTheme()}
+function saveTheme(){try{localStorage.setItem('tekk-theme2',JSON.stringify(TH))}catch(e){}idbSet('theme2',JSON.stringify(TH))}
 function themeSheet(){
   openSheet(`<h2>Farben</h2><p>Wähle ein Theme oder färbe jeden Bereich selbst.</p>
   <div class="row">${Object.entries(THEMES).map(([n,c])=>`<button class="act ${TH.name===n?'sel':'alt'}" data-t="${n}">${n}<span class="prev">${['body','deep','lit','hot','ice'].map(k=>`<i style="background:${c[k]}"></i>`).join('')}</span></button>`).join('')}</div>
   ${AREAS.map(([k,l])=>`<label class="colorRow"><span>${l}</span><input type="color" data-c="${k}" value="${TH.c[k]}"></label>`).join('')}
-  <div class="row"><button class="act full" id="sC">Fertig</button></div>`);
-  $$('#sheet [data-t]').forEach(b=>b.onclick=()=>{TH={name:b.dataset.t,c:{...THEMES[b.dataset.t]}};applyTheme();themeSheet()});
+  <h3>Hintergrundbild</h3><div class="row"><button class="act" id="bgL">Bild laden</button><button class="act alt" id="bgX">Bild entfernen</button></div>
+  <label><span>Sichtbarkeit: <span id="bgV">${TH.bgOp??70}</span> %</span><input id="bgO" type="range" min="10" max="100" value="${TH.bgOp??70}"></label>
+  <div class="row"><button class="act alt" id="thR">Standard</button><button class="act" id="sC">Fertig</button></div>`);
+  $('#bgL').onclick=()=>$('#imgFile').click();$('#bgX').onclick=async()=>{await idbDel('bgimg');TH.bgOn=false;await loadBg();applyTheme();toast('Bild entfernt')};
+  $('#bgO').oninput=e=>{TH.bgOp=+e.target.value;$('#bgV').textContent=e.target.value;applyTheme()};
+  $('#thR').onclick=async()=>{await idbDel('bgimg');TH={name:'Tekk-Neon',c:{...THEMES['Tekk-Neon']},bgOn:false,bgOp:70};await loadBg();applyTheme();themeSheet();toast('Farben zurückgesetzt')};
+  $$('#sheet [data-t]').forEach(b=>b.onclick=()=>{TH={...TH,name:b.dataset.t,c:{...THEMES[b.dataset.t]}};applyTheme();themeSheet()});
   $$('#sheet [data-c]').forEach(e=>e.oninput=()=>{TH.c[e.dataset.c]=e.value;TH.name='Eigenes';applyTheme()});
   $('#sC').onclick=closeSheet;
 }
@@ -499,8 +514,10 @@ function drawPlayhead(){
   const h=$('#prHead');if(view==='ov'&&phPos>=0){h.style.display='block';h.style.height=$('#prInner').offsetHeight+'px';h.style.transform=`translateX(${(phPos%patLen(pat()))*PR.w}px)`}else h.style.display='none';
   songCells.forEach(a=>a.forEach(e=>e.classList.remove('ph')));if(view==='sv'&&S.songMode&&phPos>=0){const c=songCells[Math.floor(phPos/BAR)];if(c)c.forEach(e=>e.classList.add('ph'))}
 }
-function frame(){requestAnimationFrame(frame);meters();if(!ctx||!playing)return;const t=ctx.currentTime-(ctx.outputLatency||0);let ch=false;
-  while(uiQ.length&&uiQ[0].t<=t){const q=uiQ.shift();if(q.redraw){drawAll();continue}phPos=q.p;ch=true;if(mode!=='note'&&view==='pv'){const pads=$('#pads').children,V=padTracks();q.hits.forEach(id=>{const i=V.findIndex(x=>x.id===id);if(i>=0)flash(pads[i])})}}
+let pulse=0;const FL=()=>$$('#bg .l');let flE=null,lE=null;
+function beatFx(){if(!flE){flE=$('#bg .flash');lE=FL()}if(pulse<.01)return;pulse*=.86;flE.style.opacity=pulse*.8;lE.forEach(e=>e.style.opacity=.1+pulse*.75)}
+function frame(){requestAnimationFrame(frame);meters();beatFx();if(!ctx||!playing)return;const t=ctx.currentTime-(ctx.outputLatency||0);let ch=false;
+  while(uiQ.length&&uiQ[0].t<=t){const q=uiQ.shift();if(q.redraw){drawAll();continue}phPos=q.p;ch=true;if(q.p%4===0)pulse=1;if(mode!=='note'&&view==='pv'){const pads=$('#pads').children,V=padTracks();q.hits.forEach(id=>{const i=V.findIndex(x=>x.id===id);if(i>=0)flash(pads[i])})}}
   if(ch)drawPlayhead()}
 
 /* ---------- Speichern ---------- */
@@ -538,7 +555,7 @@ function setView(v){view=v;$$('.view').forEach(e=>e.classList.toggle('on',e.id==
 function holdBtn(e,on,off){e.addEventListener('pointerdown',async ev=>{ev.preventDefault();e.setPointerCapture&&e.setPointerCapture(ev.pointerId);await resume();e.classList.add('on');on()});['pointerup','pointercancel','lostpointercapture'].forEach(n=>e.addEventListener(n,()=>{e.classList.remove('on');off()}))}
 function bpmBtn(e,d){let h;const set=()=>{S.bpm=Math.min(260,Math.max(100,S.bpm+d));$('#bpm').textContent=S.bpm;if(ctx){echoDl.delayTime.value=stepDur()*LE.st;slotN.forEach(s=>s.fxn.forEach(f=>f.n&&f.n.set()));allTF()}save()};
   e.addEventListener('pointerdown',ev=>{ev.preventDefault();set();h=setTimeout(()=>h=setInterval(set,70),350)});['pointerup','pointercancel','pointerleave'].forEach(n=>e.addEventListener(n,()=>{clearTimeout(h);clearInterval(h)}))}
-$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');
+$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;
 $('#prFill').onclick=fillSheet;
 $('#rackWave').onclick=async()=>{await resume();const t=tr(sel);if(t)trigger(t,ctx.currentTime,0)};
 $('#go').onclick=async()=>{$('#hint').style.display='none';await resume()};
@@ -554,15 +571,19 @@ $$('.hold[data-h]').forEach(e=>{const h=e.dataset.h;holdBtn(e,()=>{if(h==='echo'
 $('#packFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)importPack(f)};
 $('#libFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)importAudio(f)};
 $$('#bTabs .seg').forEach(b=>b.onclick=()=>{bTab=b.dataset.b;drawBuild()});
-$('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)loadSample(f)};
+let filePick=null;
+$('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(filePick){const c=filePick;filePick=null;c(f)}else loadSample(f)};
+$('#imgFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;await idbSet('bgimg',await f.arrayBuffer());bgType=f.type;TH.bgOn=true;await loadBg();applyTheme();if(document.body.classList.contains('open'))themeSheet();toast('Hintergrund geladen')};
 $('#projFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)importProject(f)};
+const disarm=()=>{$$('input.armed').forEach(e=>e.classList.remove('armed'));$$('.armedBox').forEach(e=>e.classList.remove('armedBox'))};
+document.addEventListener('click',e=>{const box=e.target.closest&&e.target.closest('label,.fader');const r=box&&box.querySelector('input[type=range]:not(.free)');if(r&&!r.classList.contains('armed')){disarm();r.classList.add('armed');box.classList.add('armedBox')}else if(!r)disarm()},true);
 window.addEventListener('pagehide',()=>{if(db)idbSet('state',JSON.stringify(S))});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&db)idbSet('state',JSON.stringify(S))});
 wirePiano();
 (async()=>{
-  try{const j=localStorage.getItem('tekk-theme');if(j)TH=JSON.parse(j)}catch(e){}
+  try{const j=localStorage.getItem('tekk-theme2');if(j)TH=JSON.parse(j)}catch(e){}
   await openDb();
-  try{const j=await idbGet('theme');if(j)TH=JSON.parse(j);const l=await idbGet('lib');if(l)LIB=JSON.parse(l);const s=await idbGet('state');if(s){const d=JSON.parse(s);if(d.patterns&&d.patterns.length)S=migrate(d)}}catch(e){}
+  try{const j=await idbGet('theme2');if(j)TH=JSON.parse(j);await loadBg();const l=await idbGet('lib');if(l)LIB=JSON.parse(l);const s=await idbGet('state');if(s){const d=JSON.parse(s);if(d.patterns&&d.patterns.length)S=migrate(d)}}catch(e){}
   applyTheme();applyState();requestAnimationFrame(frame);checkUpdate(true)
 })();
 window.TEKK={get S(){return S},get ctx(){return ctx},get buffers(){return buffers},get builtin(){return builtin},get slotN(){return slotN},get workletOK(){return workletOK},get TH(){return TH},get sel(){return sel},get LIB(){return LIB},GALLERY,renderPatch};
