@@ -4,7 +4,7 @@ const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=nu
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const SCALE=[0,2,3,5,7,8,10,12],NOTE_NAMES=['A','H','C','D','E','F','G','A'],BAR=16,MAXCH=32,MAXPAT=32;
 const NN=['A','A#','H','C','C#','D','D#','E','F','F#','G','G#'],noteLabel=n=>NN[((n%12)+12)%12];
-const DEF=[['Kick','#ffe600',1,'Drums'],['Bass','#ff1f8f',2,'Bass'],['Clap','#2df0ff',3,'Drums'],['Hat','#b6ff3c',3,'Drums'],['Snare','#ff8a1f',3,'Drums'],['Stab','#2df0ff',4,'Melodie'],['Hoover','#ff1f8f',4,'Melodie'],['Riser','#ffe600',5,'FX'],['Melodie','#c77dff',4,'Melodie']];
+const DEF=[['Kick','#ffe600',1,'Drums'],['Bass','#ff1f8f',2,'Bass'],['Clap','#2df0ff',3,'Drums'],['Hat','#b6ff3c',3,'Drums'],['Snare','#ff8a1f',3,'Drums'],['Stab','#2df0ff',8,'Stabs'],['Hoover','#ff1f8f',8,'Stabs'],['Riser','#ffe600',5,'FX'],['Melodie','#c77dff',4,'Melodie']];
 /*__SOUNDS__*/
 /*__BUILD__*/
 /*__LIVE__*/
@@ -20,9 +20,9 @@ function defaultState(){
   [a,b].forEach(p=>{put(p,0,K);put(p,1,O);put(p,3,O);put(p,2,C)});
   put(b,5,[0,3,8,11]);put(b,5,[6],3);put(b,5,[14],-2);
   put(c,3,O);put(c,2,C);put(c,6,[0,8]);put(d,0,K);put(d,1,O);put(d,4,[8,10,12,13,14,15]);put(d,7,[0]);
-  return{v:2,bpm:175,cur:0,nextId:9,songMode:false,patterns:[a,b,c,d],tracks:[0,1,2,3,4,5,8,6,7].map(i=>{const t=mkTrack(i,DEF[i]);if(i===8)t.syn={wave:'sawtooth'};return t}),
-    groups:['Drums','Bass','Melodie','FX'],song:[],live:[],
-    slots:[mkSlot('Master'),mkSlot('Kick'),mkSlot('Bass'),mkSlot('Drums'),mkSlot('Melodie'),mkSlot('FX'),mkSlot('Fertige Kicks'),mkSlot('Vocals'),mkSlot('Slot 8')]};
+  return{v:2,bpm:175,cur:0,nextId:9,songMode:false,split:1,patterns:[a,b,c,d],tracks:[0,1,2,3,4,5,8,6,7].map(i=>{const t=mkTrack(i,DEF[i]);if(i===8)t.syn={wave:'sawtooth'};return t}),
+    groups:['Drums','Bass','Stabs','Melodie','FX'],song:[],live:[],
+    slots:[mkSlot('Master'),mkSlot('Kick'),mkSlot('Bass'),mkSlot('Drums'),mkSlot('Melodie'),mkSlot('FX'),mkSlot('Fertige Kicks'),mkSlot('Vocals'),mkSlot('Stabs')]};
 }
 function migrate(d){            /* Projekte aus Version 1 */
   if(d.v===2){if(!d.live)d.live=[];d.binds=d.binds||[];return d}
@@ -589,7 +589,8 @@ function menuSheet(){
   $('#mN').onclick=()=>{openSheet(`<h2>Neu anfangen?</h2><p>Alle Pattern und geladenen Samples werden aus der App gelöscht. Sichere dein Projekt vorher als Datei, wenn du es behalten willst.</p><div class="row"><button class="act" id="nY">Alles löschen</button><button class="act alt" id="nN">Abbrechen</button></div>`);
     $('#nN').onclick=menuSheet;$('#nY').onclick=async()=>{for(const t of S.tracks){await idbDel('s'+t.id);delete buffers[t.id]}S=defaultState();sel=0;groupF=null;applyState();save();closeSheet();toast('Neues Projekt gestartet')}};
 }
-function ensureCats(){ensureFolders();const r=[[6,'Slot 6','Fertige Kicks'],[7,'Slot 7','Vocals']];r.forEach(([i,o,n])=>{if(S.slots[i]&&S.slots[i].name===o)S.slots[i].name=n});['Fertige Kicks','Vocals'].forEach(g=>{if(!S.groups.includes(g))S.groups.push(g)})}
+function ensureCats(){ensureFolders();
+  if(!S.split){S.split=1;const o=S.slots[8];if(o&&!o.fx.length&&o.name==='Slot 8'){o.name='Stabs';if(!S.groups.includes('Stabs'))S.groups.splice(2,0,'Stabs');let moved=0;S.tracks.forEach(t=>{if((t.src==='Stab'||t.src==='Hoover')&&t.slot===4){t.slot=8;if(t.group==='Melodie')t.group='Stabs';wireTrack(t);moved++}});if(moved)setTimeout(()=>toast('Stabs laufen jetzt über den eigenen Slot 8'),900)}}const r=[[6,'Slot 6','Fertige Kicks'],[7,'Slot 7','Vocals']];r.forEach(([i,o,n])=>{if(S.slots[i]&&S.slots[i].name===o)S.slots[i].name=n});['Fertige Kicks','Vocals'].forEach(g=>{if(!S.groups.includes(g))S.groups.push(g)})}
 function fixIds(){const seen=new Set();let mx=-1;S.tracks.forEach(t=>{if(Number.isFinite(t.id))mx=Math.max(mx,t.id)});
   S.tracks.forEach(t=>{if(Number.isFinite(t.id)&&!seen.has(t.id)){seen.add(t.id);return}const o=t.id,n=++mx;S.patterns.forEach(p=>{if(p.n[o])p.n[n]=JSON.parse(JSON.stringify(p.n[o]))});t.id=n;seen.add(n);
     if(buffers[o])buffers[n]=buffers[o];idbGet('s'+o).then(f=>{if(f)idbSet('s'+n,f)});wireTrack(t)});S.nextId=mx+1}
