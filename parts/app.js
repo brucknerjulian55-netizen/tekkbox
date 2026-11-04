@@ -276,7 +276,8 @@ function drawRack(){
 }
 function channelSheet(){
   const t=tr(sel);if(!t)return;
-  openSheet(`<h2>${esc(t.name)}</h2><p>${t.sample?'Dein Sample: '+esc(t.sample):'Eingebauter Sound: '+t.src}</p>
+  const shared=padCtx?S.live.reduce((a,c)=>a+(c.ids||[]).filter(x=>x===t.id).length,0):0;
+  openSheet(`<h2>${esc(t.name)}</h2><p>${t.sample?'Dein Sample: '+esc(t.sample):'Eingebauter Sound: '+t.src}</p>${shared>1?`<div class="mcR" style="--s:var(--lit)"><b>Dieser Kanal liegt auf ${shared} Pads</b><span>Name, Stumm und Noten gelten für alle diese Pads. Für eine eigene Spur trenne dieses Pad ab.</span></div><div class="row"><button class="act full" id="cSp">Eigenen Kanal für dieses Pad anlegen</button></div>`:''}
   <canvas class="ed" id="cW" height="90" aria-label="Waveform, tippen zum Abspielen"></canvas>
   <div class="row"><button class="act" id="sL">Sample laden</button><button class="act alt" id="sR">Eingebauten Sound nutzen</button><button class="act full" id="cP2">Aus meinen Sounds laden</button><button class="act alt full" id="cM">Muster einfüllen</button>${padCtx?'<button class="act alt" id="cPd">Pad anders belegen</button><button class="act alt" id="cPs">Sound tauschen</button>':''}</div>${padCtx?`<p>Was das Pad macht</p><div class="segRow" id="cAct" style="flex-wrap:wrap">${PADACT.map(o=>`<button class="act ${((padCtx.c.acts&&padCtx.c.acts[padCtx.i])||'play')===o[0]?'sel':'alt'}" style="flex:1 1 45%" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`:''}
   <label>Name<input id="cN" type="text" maxlength="20" value="${esc(t.name)}"></label>
@@ -289,6 +290,7 @@ function channelSheet(){
   <label>Länge<input id="sD" type="range" min="5" max="100" value="${t.len*100}" data-def="100"></label>
   <div class="colorRow"><span>Farbe</span><input id="cC" type="color" value="${t.color}"></div>
   <div class="bndC"><button class="chip${bound(b=>b.kind==='tvol'&&b.tid===t.id)?' on':''}" id="cBv">Lautstärke live binden</button><button class="chip${bound(b=>b.kind==='tpan'&&b.tid===t.id)?' on':''}" id="cBp">Panorama live binden</button></div><div class="row"><button class="act alt" id="cR">Standard</button><button class="act alt" id="cD">Kanal löschen</button><button class="act full" id="sC">Fertig</button></div>`);
+  if(shared>1)$('#cSp').onclick=async()=>{const p=padCtx;fixIds();const n={...t,id:S.nextId++,name:(t.name+' neu').slice(0,20),mute:false};S.tracks.splice(S.tracks.indexOf(t)+1,0,n);wireTrack(n);if(buffers[t.id])buffers[n.id]=buffers[t.id];const f=await idbGet('s'+t.id);if(f)await idbSet('s'+n.id,f);p.c.ids[p.i]=n.id;sel=n.id;drawAll();save();channelSheet();toast('Eigener Kanal angelegt: '+n.name)};
   if(padCtx){$('#cPs').onclick=()=>{const p=padCtx;padSwapStart(p.c,p.i)};$('#cPd').onclick=()=>{const p=padCtx;padAssign(p.c,p.i)};$$('#cAct button').forEach(b=>b.onclick=()=>{const p=padCtx;p.c.acts=p.c.acts||[];p.c.acts[p.i]=b.dataset.v;t.mute=b.dataset.v==='holdo';drawPads();drawRack();save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y})}
   $('#cP2').onclick=()=>soundPicker('Sound für '+t.name,async(b,n)=>{await assignBuf(t,b,n);channelSheet();toast(n+' geladen')},channelSheet);
   $('#cBv').onclick=()=>bindSheet({kind:'tvol',tid:t.id,min:0,max:1.2,step:.01,label:`Kanal ${t.name}: Lautstärke`,short:t.name},channelSheet);$('#cBp').onclick=()=>bindSheet({kind:'tpan',tid:t.id,min:-1,max:1,step:.01,label:`Kanal ${t.name}: Panorama`,short:'Pan '+t.name},channelSheet);
