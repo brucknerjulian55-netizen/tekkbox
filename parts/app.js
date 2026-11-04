@@ -474,7 +474,7 @@ function patSheet(){
   const P=pat();
   openSheet(`<h2>${esc(P.name)}</h2><p>Jedes Pattern hat eigene Noten für alle Kanäle.</p>
   <label>Name<input id="pN" type="text" maxlength="16" value="${esc(P.name)}"></label>
-  <label>Länge<select id="pL">${[1,2,4].map(b=>`<option value="${b}"${b===P.bars?' selected':''}>${b} ${b>1?'Takte':'Takt'}</option>`).join('')}</select></label>
+  <label>Länge<select id="pL">${[1,2,4,8].map(b=>`<option value="${b}"${b===P.bars?' selected':''}>${b*BAR} Felder (${b} ${b>1?'Takte':'Takt'})</option>`).join('')}</select></label>
   <div class="row3" id="pList">${S.patterns.map((p,i)=>`<button class="act ${i===S.cur?'sel':'alt'}" data-p="${i}">${i+1}: ${esc(p.name)}</button>`).join('')}</div>
   <div class="row"><button class="act" id="pC">Pattern duplizieren</button><button class="act alt" id="pX">Noten löschen</button><button class="act alt" id="pD">Pattern entfernen</button><button class="act alt" id="sC">Fertig</button></div>`);
   $('#pN').oninput=e=>{P.name=e.target.value||P.name;drawPatBar();save()};
