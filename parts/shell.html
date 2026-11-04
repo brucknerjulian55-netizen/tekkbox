@@ -216,7 +216,6 @@ input[type=file]{display:none}
   <div id="main">
     <div class="view" id="pv">
       <div class="stepGrid" id="steps"></div>
-      <div id="pads"></div>
       <div class="liveCol">
         <div id="mode"><button class="seg on" data-m="play">Pads</button><button class="seg" data-m="note">Noten</button><button class="seg" data-m="mute">Stumm</button><button class="seg" data-m="hold">Halten</button></div>
         <div class="faders">
@@ -226,7 +225,7 @@ input[type=file]{display:none}
         <div class="holds"><button class="hold" data-h="r16">Roll 1/16</button><button class="hold" data-h="r32">Roll 1/32</button><button class="hold" data-h="echo">Echo</button><button class="hold" id="soundBtn">Sound</button></div>
       </div>
     </div>
-    <div class="view" id="rv"><div class="chips" id="groups"></div><div id="rackWaveBox"><canvas id="rackWave" aria-label="Waveform des gewählten Kanals, tippen zum Abspielen"></canvas><span id="rackWaveN"></span></div><div id="rackScroll"></div></div>
+    <div class="view" id="rv"><div id="rackSel" style="display:none"><b id="rsN"></b><button class="mini" id="rsX">Leeren</button><button class="mini" id="rsD">Löschen</button><button class="mini" id="rsA">Alle</button><button class="mini" id="rsQ">Fertig</button></div><div class="chips" id="groups"></div><div id="rackWaveBox"><canvas id="rackWave" aria-label="Waveform des gewählten Kanals, tippen zum Abspielen"></canvas><span id="rackWaveN"></span></div><div id="rackScroll"></div></div>
     <div class="view" id="ov">
       <div class="prBar">
         <select id="prCh" aria-label="Kanal"></select>
@@ -238,7 +237,7 @@ input[type=file]{display:none}
     </div>
     <div class="view" id="sv"><p class="note">Wähle oben ein Pattern und tippe in eine Spur. Tippe nochmal, um es zu entfernen. Mit „Song“ oben spielst du das Arrangement ab.</p><div id="songScroll"></div></div>
     <div class="view" id="mv"><div id="mixTop"><button class="act" id="mixChk">Mix prüfen</button></div><div id="mixList"></div></div>
-    <div class="view on" id="lv"><div id="liveTop"><button class="mini" id="liveEditBtn">Bearbeiten</button><button class="mini liveAdd" id="liveAddP">+ Pads</button><button class="mini liveAdd" id="liveAddT">+ Schritte</button><button class="mini liveAdd" id="liveAddF">+ FX</button><button class="mini liveAdd" id="liveAddB">+ Knopf</button><button class="mini liveAdd" id="liveAddS">+ Slider</button><button class="mini liveAdd" id="liveAddK">+ Knob</button><button class="mini liveAdd" id="liveAddX">+ XY</button><button class="mini liveAdd" id="liveAddV">+ Vorlage</button><button class="mini liveAdd" id="liveClear">Leeren</button></div><div id="liveArea"></div></div>
+    <div class="view on" id="lv"><div id="liveTop"><button class="mini" id="liveEditBtn">Bearbeiten</button><button class="mini" id="liveSize">Fläche</button><button class="mini liveAdd" id="liveAddP">+ Pads</button><button class="mini liveAdd" id="liveAddT">+ Schritte</button><button class="mini liveAdd" id="liveAddF">+ FX</button><button class="mini liveAdd" id="liveAddB">+ Knopf</button><button class="mini liveAdd" id="liveAddS">+ Slider</button><button class="mini liveAdd" id="liveAddK">+ Knob</button><button class="mini liveAdd" id="liveAddX">+ XY</button><button class="mini liveAdd" id="liveAddV">+ Vorlage</button><button class="mini liveAdd" id="liveClear">Leeren</button></div><div id="liveScroll"><div id="liveArea"></div></div></div>
     <div class="view" id="bv"><div id="bTabs"><button class="seg on" data-b="synth">Synth</button><button class="seg" data-b="lib">Sounds</button></div><div id="bSynth"></div><div id="bLib"></div></div>
   </div>
   <div id="nav">

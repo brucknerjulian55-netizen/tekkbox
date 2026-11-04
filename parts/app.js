@@ -202,17 +202,19 @@ function drawSteps(){
   const b=$('#steps');if(!b.children.length)for(let i=0;i<BAR;i++){const e=el('button');e.setAttribute('aria-label','Schritt '+(i+1));e.onclick=()=>toggleStep(sel,padPage()*BAR+i);b.append(e)}
   const t=tr(sel),P=pat(),pg=padPage()*BAR;[...b.children].forEach((e,i)=>{const x=t&&stepAt(P,sel,pg+i);e.className='st'+(i%4===0?' beat':'')+(x?' on':'')+(pg+i===phPos?' ph':'');e.style.setProperty('--c',t?t.color:'');e.innerHTML=x&&x.n?`<small>${noteLabel(x.n)}</small>`:''})}
 const padPage=()=>phPos>=0?Math.floor(phPos/BAR)%pat().bars:0;
-const padTracks=()=>visTracks().slice(0,8);
-function drawPads(){
-  const b=$('#pads');if(b.children.length!==8){b.innerHTML='';for(let i=0;i<8;i++){const e=el('button');e.addEventListener('pointerdown',ev=>{ev.preventDefault();padDown(i,e)});e.addEventListener('contextmenu',ev=>ev.preventDefault());b.append(e)}}
-  const P=padTracks(),st=tr(sel);[...b.children].forEach((e,i)=>{
-    if(mode==='note'){e.className='pad note';e.innerHTML=`<b>${NOTE_NAMES[i]}</b><i>${st?esc(st.name):''}</i>`;e.style.outline=SCALE[i]===note?'2px solid var(--ink)':''}
-    else{const t=P[i];e.style.outline='';if(!t){e.className='pad';e.style.visibility='hidden';return}e.style.visibility='';e.className='pad'+(t.id===sel?' sel':'')+(t.mute?' muted':'');e.style.setProperty('--c',t.color);e.innerHTML=`<b>${esc(t.name)}</b><i>${t.sample?esc(t.sample):(t.mute?'stumm':'')}</i>`}})}
+function defaultIds(c,n){const used=new Set(S.live.filter(x=>x!==c&&x.ids).flatMap(x=>x.ids));const free=S.tracks.filter(t=>!used.has(t.id)).map(t=>t.id);return Array.from({length:n},(_,i)=>free[i]??null)}
+function drawPads(){$$('.padGrid').forEach(g=>{const c=g._c;c.cols=c.cols||4;c.rows=c.rows||2;const n=c.cols*c.rows;if(!c.ids)c.ids=defaultIds(c,8);while(c.ids.length<n)c.ids.push(null);
+  g.style.gridTemplateColumns=`repeat(${c.cols},1fr)`;g.style.gridTemplateRows=`repeat(${c.rows},1fr)`;
+  if(g.children.length!==n){g.innerHTML='';for(let i=0;i<n;i++){const e=el('button','pad');e.addEventListener('pointerdown',ev=>{if(liveEdit)return;ev.preventDefault();padDown(c,i,e)});e.addEventListener('contextmenu',ev=>ev.preventDefault());g.append(e)}}
+  const st=tr(sel);[...g.children].forEach((e,i)=>{const t=tr(c.ids[i]);e.style.outline='';
+    if(mode==='note'){e.className='pad note';e.dataset.id='';e.innerHTML=`<b>${NOTE_NAMES[i%8]}</b><i>${st?esc(st.name):''}</i>`;if(SCALE[i%8]+12*Math.floor(i/8)===note)e.style.outline='2px solid var(--ink)';return}
+    if(!t){e.className='pad empty';e.dataset.id='';e.innerHTML=liveEdit?'<b>+</b>':'';return}
+    e.dataset.id=t.id;e.className='pad'+(t.id===sel?' sel':'')+(t.mute?' muted':'');e.style.setProperty('--c',t.color);e.innerHTML=`<b>${esc(t.name)}</b><i>${t.sample?esc(t.sample):(t.mute?'stumm':'')}</i>`})})}
 function flash(e){e.style.setProperty('--glow',.9);clearTimeout(e._t);e._t=setTimeout(()=>e.style.setProperty('--glow',0),90)}
-async function padDown(i,e){
+async function padDown(c,i,e){
   await resume();flash(e);
-  if(mode==='note'){note=SCALE[i];const t=tr(sel);if(t){trigger(t,ctx.currentTime,note);record(sel,note)}drawPads();return}
-  const t=padTracks()[i];if(!t)return;
+  if(mode==='note'){note=SCALE[i%8]+12*Math.floor(i/8);const t=tr(sel);if(t){trigger(t,ctx.currentTime,note);record(sel,note)}drawPads();return}
+  const t=tr(c.ids[i]);if(!t)return;
   if(mode==='mute'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();save();return}
   if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime);drawPads();const u=()=>{t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
   const ch=sel!==t.id;sel=t.id;trigger(t,ctx.currentTime,0);record(t.id,0);if(ch){drawPads();drawSteps()}
@@ -246,16 +248,21 @@ function fillSheet(){
   $('#fX').onclick=()=>{delete pat().n[t.id];refreshGrid();save();closeSheet()};$('#sC').onclick=closeSheet;
 }
 /* ---------- Channel Rack ---------- */
-let rackCells=[];
+let rackCells=[],rackSel=null,rackDrag=false,rackSkip=false,rackLP=0;
+function rackMark(){$$('.rRow').forEach(r=>r.classList.toggle('picked',!!rackSel&&rackSel.has(+r.dataset.id)));const b=$('#rackSel');b.style.display=rackSel?'':'none';if(rackSel)$('#rsN').textContent=rackSel.size+' gewählt'}
+function rackEnd(){rackSel=null;rackDrag=false;rackMark()}
+function rackPickAt(x,y){const r=document.elementFromPoint(x,y),w=r&&r.closest&&r.closest('.rRow');if(w&&rackSel){rackSel.add(+w.dataset.id);rackMark()}}
+function delTracks(ids){const keep=S.tracks.filter(t=>!ids.includes(t.id));if(!keep.length){toast('Ein Kanal muss bleiben.');return false}S.tracks=keep;ids.forEach(id=>{S.patterns.forEach(p=>delete p.n[id]);idbDel('s'+id);delete buffers[id]});S.live.forEach(c=>{if(c.ids)c.ids=c.ids.map(i=>ids.includes(i)?null:i)});if(!tr(sel))sel=S.tracks[0].id;drawAll();save();return true}
 function drawGroups(){const b=$('#groups');b.innerHTML='';[[null,'Alle'],...S.groups.map(g=>[g,g])].forEach(([g,l])=>{const e=el('button','chip'+(g===groupF?' on':''),l);e.onclick=()=>{groupF=g;drawRack();drawPads();drawGroups()};b.append(e)});
   const a=el('button','chip','+ Gruppe');a.onclick=groupSheet;b.append(a)}
 function drawRack(){
   const b=$('#rackScroll'),keep=b.scrollLeft,P=pat(),L=patLen(P);b.innerHTML='';rackCells=[];
   visTracks().forEach(t=>{
-    const r=el('div','rRow'),h=el('div','rHead'),m=el('button','rMute'+(t.mute?' off':'')),n=el('button','rName'+(t.id===sel?' sel':''),t.name),o=el('button','rOpt','⋯'),c=el('div','rCells');
-    r.style.setProperty('--c',t.color);m.setAttribute('aria-label',t.name+' stumm schalten');o.setAttribute('aria-label',t.name+' bearbeiten');
+    const r=el('div','rRow'+(rackSel&&rackSel.has(t.id)?' picked':'')),h=el('div','rHead'),m=el('button','rMute'+(t.mute?' off':'')),n=el('button','rName'+(t.id===sel?' sel':''),t.name),o=el('button','rOpt','⋯'),c=el('div','rCells');
+    r.dataset.id=t.id;r.style.setProperty('--c',t.color);m.setAttribute('aria-label',t.name+' stumm schalten');o.setAttribute('aria-label',t.name+' bearbeiten');
     m.onclick=()=>{t.mute=!t.mute;drawRack();drawPads();save()};
-    n.onclick=async()=>{await resume();sel=t.id;trigger(t,ctx.currentTime,0);drawRack();drawPads();drawSteps()};
+    n.addEventListener('pointerdown',ev=>{const x=ev.clientX,y=ev.clientY;rackSkip=false;clearTimeout(rackLP);rackLP=setTimeout(()=>{rackSel=rackSel||new Set();rackSel.add(t.id);rackDrag=true;rackSkip=true;rackMark();try{navigator.vibrate&&navigator.vibrate(18)}catch(e){}},450);n._xy=[x,y]});
+    n.onclick=async()=>{if(rackSkip){rackSkip=false;return}if(rackSel){rackSel.has(t.id)?rackSel.delete(t.id):rackSel.add(t.id);rackMark();return}await resume();sel=t.id;trigger(t,ctx.currentTime,0);drawRack();drawPads();drawSteps()};
     o.onclick=()=>{sel=t.id;channelSheet()};
     h.append(m,n,o);
     for(let s=0;s<L;s++){const x=stepAt(P,t.id,s),e=el('button','rc'+(s%4===0?' beat':'')+(s%BAR===0&&s?' barS':'')+(x?' on':'')+(s===phPos?' ph':''),x&&x.n?noteLabel(x.n):'');e.dataset.s=s;e.setAttribute('aria-label',t.name+' Schritt '+(s+1));e.onclick=()=>{sel=t.id;toggleStep(t.id,s)};c.append(e);(rackCells[s]=rackCells[s]||[]).push(e)}
@@ -266,7 +273,7 @@ function channelSheet(){
   const t=tr(sel);if(!t)return;
   openSheet(`<h2>${esc(t.name)}</h2><p>${t.sample?'Dein Sample: '+esc(t.sample):'Eingebauter Sound: '+t.src}</p>
   <canvas class="ed" id="cW" height="90" aria-label="Waveform, tippen zum Abspielen"></canvas>
-  <div class="row"><button class="act" id="sL">Sample laden</button><button class="act alt" id="sR">Eingebauten Sound nutzen</button><button class="act full" id="cP2">Aus meinen Sounds laden</button><button class="act alt full" id="cM">Muster einfüllen</button></div>
+  <div class="row"><button class="act" id="sL">Sample laden</button><button class="act alt" id="sR">Eingebauten Sound nutzen</button><button class="act full" id="cP2">Aus meinen Sounds laden</button><button class="act alt full" id="cM">Muster einfüllen</button>${padCtx?'<button class="act alt full" id="cPd">Pad anders belegen</button>':''}</div>
   <label>Name<input id="cN" type="text" maxlength="20" value="${esc(t.name)}"></label>
   <div class="row"><label>Gruppe<select id="cG"><option value="">Keine</option>${S.groups.map(g=>`<option${g===t.group?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
   <label>Mixer-Slot<select id="cS">${S.slots.map((s,i)=>i?`<option value="${i}"${i===t.slot?' selected':''}>${i}: ${esc(s.name)}</option>`:'').join('')}</select></label></div>
@@ -277,6 +284,7 @@ function channelSheet(){
   <label>Länge<input id="sD" type="range" min="5" max="100" value="${t.len*100}" data-def="100"></label>
   <div class="colorRow"><span>Farbe</span><input id="cC" type="color" value="${t.color}"></div>
   <div class="row"><button class="act alt" id="cR">Standard</button><button class="act alt" id="cD">Kanal löschen</button><button class="act full" id="sC">Fertig</button></div>`);
+  if(padCtx)$('#cPd').onclick=()=>{const p=padCtx;padAssign(p.c,p.i)};
   $('#cP2').onclick=()=>soundPicker('Sound für '+t.name,async(b,n)=>{await assignBuf(t,b,n);channelSheet();toast(n+' geladen')},channelSheet);
   $('#cR').onclick=()=>{Object.assign(t,{vol:.85,pan:0,tune:0,len:1,start:0});wireTrack(t);drawAll();save();channelSheet();toast('Auf Standard zurückgesetzt')};
   $('#sL').onclick=()=>{loadTrack=t.id;$('#file').click()};
@@ -292,7 +300,7 @@ function channelSheet(){
   $('#sD').oninput=e=>{t.len=e.target.value/100;wv();save()};
   $('#cSt').oninput=e=>{t.start=e.target.value/100;wv();save()};
   $('#cC').oninput=e=>{t.color=e.target.value;drawAll();save()};
-  $('#cD').onclick=()=>{if(S.tracks.length<2){toast('Ein Kanal muss bleiben.');return}S.tracks=S.tracks.filter(x=>x!==t);S.patterns.forEach(p=>delete p.n[t.id]);idbDel('s'+t.id);delete buffers[t.id];sel=S.tracks[0].id;drawAll();save();closeSheet();toast(t.name+' gelöscht')};
+  $('#cD').onclick=()=>{if(delTracks([t.id])){closeSheet();toast(t.name+' gelöscht')}};
   $('#sC').onclick=closeSheet;
 }
 function addChannelSheet(){
@@ -509,7 +517,7 @@ function themeSheet(){
 
 /* ---------- Menü und Sheets ---------- */
 function openSheet(h){edStop();$('#sheet').innerHTML=h;document.body.classList.add('open');$('#sheet').scrollTop=0}
-function closeSheet(){edStop();document.body.classList.remove('open')}
+function closeSheet(){padCtx=null;edStop();document.body.classList.remove('open')}
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',2600)}
 function menuSheet(){
   openSheet(`<h2>Menü</h2><p>Änderungen werden automatisch auf diesem Gerät gespeichert.${idbOK?'':' Dieser Browser speichert hier nicht dauerhaft. Sichere dein Projekt deshalb als Datei.'}</p>
@@ -531,7 +539,7 @@ function drawPlayhead(){
 let pulse=0;const FL=()=>$$('#bg .l');let flE=null,lE=null;
 function beatFx(){if(!flE){flE=$('#bg .flash');lE=FL()}if(pulse<.01)return;pulse*=.86;flE.style.opacity=pulse*.8;lE.forEach(e=>e.style.opacity=.1+pulse*.75)}
 function frame(){requestAnimationFrame(frame);meters();beatFx();if(!ctx||!playing)return;const t=ctx.currentTime-(ctx.outputLatency||0);let ch=false;
-  while(uiQ.length&&uiQ[0].t<=t){const q=uiQ.shift();if(q.redraw){drawAll();continue}phPos=q.p;ch=true;if(q.p%4===0)pulse=1;if(mode!=='note'&&view==='lv'){const pads=$('#pads').children,V=padTracks();q.hits.forEach(id=>{const i=V.findIndex(x=>x.id===id);if(i>=0)flash(pads[i])})}}
+  while(uiQ.length&&uiQ[0].t<=t){const q=uiQ.shift();if(q.redraw){drawAll();continue}phPos=q.p;ch=true;if(q.p%4===0)pulse=1;if(mode!=='note'&&view==='lv')q.hits.forEach(id=>$$(`.pad[data-id="${id}"]`).forEach(flash))}
   if(ch)drawPlayhead()}
 
 /* ---------- Speichern ---------- */
@@ -565,16 +573,23 @@ async function loadSample(file){await resume();
   catch(e){toast('Diese Datei lässt sich nicht lesen. Probiere WAV oder MP3.')}}
 
 /* ---------- Verdrahtung ---------- */
-function setView(v){view=v;if(v!=='lv')parkBlocks();$$('.view').forEach(e=>e.classList.toggle('on',e.id===v));$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='rv')drawRack();if(v==='ov'){prSelect();drawPiano();prFocus()}if(v==='sv')drawSong();if(v==='mv')drawMixer();if(v==='bv')drawBuild();if(v==='lv')drawLive();drawPlayhead()}
+function clearTimeoutIfMoved(){}
+function setView(v){view=v;if(v!=='rv'&&rackSel)rackEnd();if(v!=='lv')parkBlocks();$$('.view').forEach(e=>e.classList.toggle('on',e.id===v));$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(v==='rv')drawRack();if(v==='ov'){prSelect();drawPiano();prFocus()}if(v==='sv')drawSong();if(v==='mv')drawMixer();if(v==='bv')drawBuild();if(v==='lv')drawLive();drawPlayhead()}
 function holdBtn(e,on,off){e.addEventListener('pointerdown',async ev=>{ev.preventDefault();e.setPointerCapture&&e.setPointerCapture(ev.pointerId);await resume();e.classList.add('on');on()});['pointerup','pointercancel','lostpointercapture'].forEach(n=>e.addEventListener(n,()=>{e.classList.remove('on');off()}))}
 function bpmBtn(e,d){let h;const set=()=>{S.bpm=Math.min(260,Math.max(100,S.bpm+d));$('#bpm').textContent=S.bpm;if(ctx){echoDl.delayTime.value=stepDur()*LE.st;slotN.forEach(s=>s.fxn.forEach(f=>f.n&&f.n.set()));allTF()}save()};
   e.addEventListener('pointerdown',ev=>{ev.preventDefault();set();h=setTimeout(()=>h=setInterval(set,70),350)});['pointerup','pointercancel','pointerleave'].forEach(n=>e.addEventListener(n,()=>{clearTimeout(h);clearInterval(h)}))}
-$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;$('#liveAddV').onclick=presetSheet;$('#liveAddP').onclick=()=>addBlock('pads');$('#liveAddT').onclick=()=>addBlock('steps');$('#liveAddF').onclick=()=>addBlock('fx');$('#mixChk').onclick=mixCheck;
+$('#liveEditBtn').onclick=()=>{liveEdit=!liveEdit;drawLive()};$('#liveAddB').onclick=()=>addLive('btn');$('#liveAddS').onclick=()=>addLive('slider');$('#liveAddX').onclick=()=>addLive('xy');$('#liveAddK').onclick=()=>addLive('knob');$('#liveClear').onclick=liveClearSheet;$('#liveAddV').onclick=presetSheet;$('#liveAddP').onclick=()=>addBlock('pads');$('#liveAddT').onclick=()=>addBlock('steps');$('#liveAddF').onclick=()=>addBlock('fx');$('#mixChk').onclick=mixCheck;$('#liveSize').onclick=areaSheet;
+document.addEventListener('pointermove',e=>{if(rackDrag)rackPickAt(e.clientX,e.clientY);else if(rackLP)clearTimeoutIfMoved(e)},true);
+['pointerup','pointercancel'].forEach(n=>document.addEventListener(n,()=>{clearTimeout(rackLP);rackLP=0;rackDrag=false},true));
+$('#rackScroll').addEventListener('touchmove',e=>{if(rackDrag)e.preventDefault()},{passive:false});
+$('#rsX').onclick=()=>{const P=pat();rackSel.forEach(id=>delete P.n[id]);refreshGrid();save();toast('Kanäle im Pattern geleert');rackEnd()};
+$('#rsA').onclick=()=>{visTracks().forEach(t=>rackSel.add(t.id));rackMark()};$('#rsQ').onclick=rackEnd;
+$('#rsD').onclick=()=>{const ids=[...rackSel];openSheet(`<h2>${ids.length} ${ids.length>1?'Kanäle':'Kanal'} löschen?</h2><p>Die Kanäle verschwinden mit ihren Noten aus allen Pattern.</p><div class="row"><button class="act" id="dY">Löschen</button><button class="act alt" id="sC">Abbrechen</button></div>`);$('#dY').onclick=()=>{if(delTracks(ids)){rackEnd();toast('Gelöscht')}closeSheet()};$('#sC').onclick=closeSheet};
 $('#prFill').onclick=fillSheet;
 $('#rackWave').onclick=async()=>{await resume();const t=tr(sel);if(t)trigger(t,ctx.currentTime,0)};
 $('#go').onclick=async()=>{$('#hint').style.display='none';await resume()};
 $('#play').onclick=togglePlay;$('#rec').onclick=()=>{recOn=!recOn;$('#rec').classList.toggle('on',recOn)};
-$('#menu').onclick=menuSheet;$('#sheetBg').onclick=closeSheet;$('#soundBtn').onclick=channelSheet;
+$('#menu').onclick=menuSheet;$('#sheetBg').onclick=closeSheet;window.addEventListener('resize',()=>{if(view==='lv')drawLive()});$('#soundBtn').onclick=channelSheet;
 $('#patPrev').onclick=()=>goPat((queued??S.cur)-1);$('#patNext').onclick=()=>goPat((queued??S.cur)+1);$('#patName').onclick=patSheet;
 $('#patAdd').onclick=()=>{if(S.patterns.length>=MAXPAT)return toast('Mehr als '+MAXPAT+' Pattern gehen nicht.');S.patterns.push(newPat('Pattern '+(S.patterns.length+1)));goPat(S.patterns.length-1)};
 $('#songMode').onclick=()=>{S.songMode=!S.songMode;queued=null;pos=0;drawPatBar();save()};

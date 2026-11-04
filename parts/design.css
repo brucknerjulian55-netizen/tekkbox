@@ -87,3 +87,11 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
 .lc.block{pointer-events:none}.lc.block>*{pointer-events:auto}.edit .lc.block{pointer-events:auto}
 .stp{display:grid;grid-template-columns:minmax(0,1fr) 46px 58px 46px;gap:4px;align-items:center;margin-bottom:6px;font-size:15px;font-weight:600}.stp b{text-align:center;font-variant-numeric:tabular-nums}.stp .act{min-height:40px;padding:0;font-size:20px}
 #liveTop .mini{flex:none!important}
+
+#liveScroll{flex:1;min-height:0;overflow:auto;background:var(--wellA);border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:3px;scrollbar-width:thin}
+#liveArea{flex:none;border:0;border-radius:0;background:none;overflow:visible;min-width:100%;min-height:100%}
+.padGrid{flex:1;min-height:0;display:grid;gap:6px}
+.pad.empty{opacity:.35;border-style:dashed;align-items:center;justify-content:center}.pad.empty::after{display:none}.pad.empty b{font-size:22px}
+.edit .lc.block .padGrid,.edit .lc.block .pad{pointer-events:auto}
+#rackSel{display:flex;gap:4px;align-items:center;flex:none;overflow-x:auto}#rackSel b{margin-right:auto;font-size:14px;color:var(--lit);white-space:nowrap}#rackSel .mini{flex:none}
+.rRow.picked .rName{background:var(--lit);color:var(--well)}.rRow.picked{background:color-mix(in srgb,var(--lit) 14%,transparent)}
