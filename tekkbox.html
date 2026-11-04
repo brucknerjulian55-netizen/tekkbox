@@ -901,7 +901,7 @@ function sound(t,time,n=0,gate=0){
   s.onended=()=>{voices[t.id]=(voices[t.id]||[]).filter(v=>v.s!==s)};
 }
 function trigger(t,time,n=0,gate=0){choke(t.id,time);sound(t,time,n,gate)}
-function holdVoice(t,n){trigger(t,ctx.currentTime,n,8);const u=()=>{choke(t.id,ctx.currentTime);window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u)}
+function holdVoice(t,n,pid=lastPid){trigger(t,ctx.currentTime,n,8);const u=e=>{if(e.pointerId!==pid)return;choke(t.id,ctx.currentTime);window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u)}
 
 /* ---------- Effekte in den Mixer-Slots ---------- */
 const FX={
@@ -1014,16 +1014,17 @@ function drawPads(){$$('.padGrid').forEach(g=>{const c=g._c;c.cols=c.cols||4;c.r
     if(padSwap&&padSwap.c===c&&padSwap.i===i)e.style.outline='2px solid var(--lit)';if(!t){e.className='pad empty';e.dataset.id='';e.innerHTML=liveEdit?'<b>+</b>':'';return}
     e.dataset.id=t.id;e.className='pad'+(t.id===sel?' sel':'')+(t.mute?' muted':'');e.style.setProperty('--c',t.color);const ac=(c.acts&&c.acts[i])||'play';e.innerHTML=`<b>${esc(t.name)}</b><i>${t.mute?'stumm':ac==='toggle'?'Tippen':ac==='holdm'||ac==='holdo'?'Halten':t.sample?esc(t.sample):''}</i>`})})}
 function flash(e){e.style.setProperty('--glow',.9);clearTimeout(e._t);e._t=setTimeout(()=>e.style.setProperty('--glow',0),90)}
+let lastPid=0;document.addEventListener('pointerdown',e=>{lastPid=e.pointerId},true);
 async function padDown(c,i,e){
-  await resume();flash(e);
-  if(mode==='note'){note=SCALE[i%8]+12*Math.floor(i/8);const t=tr(sel);if(t){if(holdable(t))holdVoice(t,note);else trigger(t,ctx.currentTime,note);record(sel,note)}drawPads();return}
+  const pid=lastPid;await resume();flash(e);
+  if(mode==='note'){note=SCALE[i%8]+12*Math.floor(i/8);const t=tr(sel);if(t){if(holdable(t))holdVoice(t,note,pid);else trigger(t,ctx.currentTime,note);record(sel,note)}drawPads();return}
   const t=tr(c.ids[i]);if(!t)return;
   if(mode==='mute'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();save();return}
-  if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime);drawPads();const u=()=>{t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
+  if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
   const act=(c.acts&&c.acts[i])||'play';
   if(act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();drawRack();save();return}
-  if(act==='holdm'||act==='holdo'){const on=act==='holdm';t.mute=on;if(on)choke(t.id,ctx.currentTime);drawPads();const u=()=>{t.mute=!on;if(!on)choke(t.id,ctx.currentTime);drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
-  const ch=sel!==t.id;sel=t.id;if(holdable(t))holdVoice(t,0);else trigger(t,ctx.currentTime,0);record(t.id,0);if(ch){drawPads();drawSteps()}
+  if(act==='holdm'||act==='holdo'){const on=act==='holdm';t.mute=on;if(on)choke(t.id,ctx.currentTime);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=!on;if(!on)choke(t.id,ctx.currentTime);drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
+  const ch=sel!==t.id;sel=t.id;if(holdable(t))holdVoice(t,0,pid);else trigger(t,ctx.currentTime,0);record(t.id,0);if(ch){drawPads();drawSteps()}
 }
 function setMode(m){mode=m;$$('.seg').forEach(b=>b.classList.toggle('on',b.dataset.m===m));drawPads()}
 
