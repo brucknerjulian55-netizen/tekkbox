@@ -89,7 +89,9 @@ function setDrive(){if(!ctx)return;const v=+$('#drive').value/100;wet.gain.value
 function setFilter(v){if(!ctx)return;const t=ctx.currentTime,x=Math.abs(v)/100;
   lp.frequency.setTargetAtTime(v<0?20000*Math.pow(.012,x):20000,t,.012);hp.frequency.setTargetAtTime(v>0?20*Math.pow(200,x):20,t,.012);
   $('#fLab').textContent=v<-2?'Filter: Höhen weg':v>2?'Filter: Bass weg':'Filter'}
-function choke(id,t){(voices[id]||[]).forEach(v=>{try{v.g.gain.cancelScheduledValues(t);v.g.gain.setTargetAtTime(0,t,.004);v.s.stop(t+.03)}catch(e){}});voices[id]=[]}
+function choke(id,t,force){const T=tr(id);if(T&&T.cut===false&&!force)return;const f=((T&&T.fade)??8)/1000;(voices[id]||[]).forEach(v=>{try{v.g.gain.cancelScheduledValues(t);v.g.gain.setTargetAtTime(0,t,Math.max(.002,f/4));v.s.stop(t+f+.03)}catch(e){}});voices[id]=[]}
+const peakCache=new WeakMap();function peakOf(b){if(peakCache.has(b))return peakCache.get(b);let p=0;for(let c=0;c<b.numberOfChannels;c++){const a=b.getChannelData(c);for(let i=0;i<a.length;i+=2){const v=Math.abs(a[i]);if(v>p)p=v}}peakCache.set(b,p);return p}
+const normGain=b=>{const p=peakOf(b);return p>.001?.966/p:1};
 const SYND={wave:'sawtooth',uni:3,spread:12,a:.005,d:.2,s:.8,r:.12,cut:6000,res:1,oct:0};
 function synthVoice(t,time,n,gate){
   const P={...SYND,...t.syn},f0=220*Math.pow(2,(t.tune+n+P.oct*12)/12),g=ctx.createGain(),fl=ctx.createBiquadFilter(),U=Math.max(1,P.uni|0),len=Math.max(.03,gate||.35),os=[];
@@ -104,11 +106,11 @@ function sound(t,time,n=0,gate=0){
   if(t.syn&&ctx&&tBus[t.id])return synthVoice(t,time,n,gate);
   const buf=buffers[t.id]||builtin[t.src];if(!buf||!ctx||!tBus[t.id])return;
   const s=ctx.createBufferSource(),g=ctx.createGain();s.buffer=buf;s.playbackRate.value=Math.pow(2,(t.tune+n)/12);
-  s.connect(g).connect(tBus[t.id].g);g.gain.setValueAtTime(1,time);
+  const LV=t.norm?normGain(buf):1;s.connect(g).connect(tBus[t.id].g);g.gain.setValueAtTime(0,time);g.gain.linearRampToValueAtTime(LV,time+.0015);
   const off=(t.start||0)*buf.duration;if(t.loop){s.loop=true;s.loopStart=off+(buf.duration-off)*.06;s.loopEnd=off+(buf.duration-off)*.4}const full=t.loop?1e6:(buf.duration-off)/s.playbackRate.value;let len=t.loop?(gate||1):full*t.len;if(gate)len=Math.min(len,gate);
   s.start(time,off);
-  if(len<full){g.gain.setValueAtTime(1,time+Math.max(0,len-.012));g.gain.linearRampToValueAtTime(0,time+len);s.stop(time+len+.01)}
-  (voices[t.id]=voices[t.id]||[]).push({s,g});
+  if(len<full){g.gain.setValueAtTime(LV,time+Math.max(.002,len-.012));g.gain.linearRampToValueAtTime(0,time+len);s.stop(time+len+.01)}
+  const VL=voices[t.id]=voices[t.id]||[];VL.push({s,g});if(VL.length>12){const o=VL.shift();try{o.g.gain.setTargetAtTime(0,time,.01);o.s.stop(time+.05)}catch(e){}}
   s.onended=()=>{voices[t.id]=(voices[t.id]||[]).filter(v=>v.s!==s)};
 }
 function trigger(t,time,n=0,gate=0){choke(t.id,time);sound(t,time,n,gate)}
@@ -179,7 +181,7 @@ function activeAt(p){
 }
 const songEnd=()=>Math.max(BAR,...S.song.map(it=>it.b*BAR+patLen(S.patterns[it.p]||{bars:1})));
 function sched(){
-  while(nextT<ctx.currentTime+.13){
+  while(nextT<ctx.currentTime+.18){
     const act=activeAt(pos),hits=[],d=stepDur();if(nextT<ctx.currentTime)PERF.late++;lastStep={t:nextT,s:pos};
     for(const t of S.tracks){
       if(roll&&t.id===sel)continue;
@@ -201,7 +203,7 @@ async function resume(){await initAudio();if(ctx.state!=='running')await ctx.res
 async function togglePlay(){
   await resume();playing=!playing;$('#play').classList.toggle('on',playing);$('#play').textContent=playing?'■':'▶';
   if(playing){pos=0;nextT=ctx.currentTime+.06;uiQ=[];if(!timer)startTimer();allTF();wake(true)}
-  else{allTF();S.tracks.forEach(t=>choke(t.id,ctx.currentTime));if(queued!==null){S.cur=queued;queued=null}wake(false);phPos=-1;drawPlayhead();drawPatBar()}
+  else{allTF();S.tracks.forEach(t=>choke(t.id,ctx.currentTime,true));if(queued!==null){S.cur=queued;queued=null}wake(false);phPos=-1;drawPlayhead();drawPatBar()}
 }
 let wl=null;async function wake(on){try{if(on&&navigator.wakeLock)wl=await navigator.wakeLock.request('screen');else if(wl){wl.release();wl=null}}catch(e){}}
 function record(id,n){
@@ -296,6 +298,8 @@ function channelSheet(){
   openSheet(`<h2>${esc(t.name)}</h2><p>${t.sample?'Dein Sample: '+esc(t.sample):'Eingebauter Sound: '+t.src}</p>${shared>1?`<div class="mcR" style="--s:var(--lit)"><b>Dieser Kanal liegt auf ${shared} Pads</b><span>Name, Stumm und Noten gelten für alle diese Pads. Für eine eigene Spur trenne dieses Pad ab.</span></div><div class="row"><button class="act full" id="cSp">Eigenen Kanal für dieses Pad anlegen</button></div>`:''}
   <p style="margin-bottom:4px">Klangquelle</p><div class="segRow" id="cSrc" style="flex-wrap:wrap">${[['','Sample'],['sine','Sinus'],['triangle','Dreieck'],['sawtooth','Säge'],['square','Rechteck']].map(o=>`<button class="act ${(t.syn?t.syn.wave:'')===o[0]?'sel':'alt'}" style="flex:1 1 30%" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>
   ${t.syn?`<p>Der Ton klingt genau so lange wie die Note.</p><div class="syGrid">${SYNS.map(p=>`<label class="fader"><span>${p[1]}: <b id="sy_${p[0]}">${t.syn[p[0]]??SYND[p[0]]}</b></span><input data-y="${p[0]}" type="range" min="${p[2]}" max="${p[3]}" step="${p[4]}" value="${t.syn[p[0]]??SYND[p[0]]}" data-def="${SYND[p[0]]}"></label>`).join('')}</div>`:`<canvas class="ed" id="cW" height="90" aria-label="Waveform, tippen zum Abspielen"></canvas><div class="row"><button class="act ${t.loop?'sel':'alt'} full" id="cLoop">Ton halten: ${t.loop?'An':'Aus'} (Sample wiederholt sich, solange die Note läuft)</button></div>`}
+  <p style="margin:8px 0 4px">Wiedergabe</p><div class="row"><button class="act ${t.cut===false?'alt':'sel'}" id="cCut">Cut Itself: ${t.cut===false?'Aus':'An'}</button>${t.syn?'':`<button class="act ${t.norm?'sel':'alt'}" id="cNorm">Normalisieren: ${t.norm?'An':'Aus'}${trBuf(t)?` (${(20*Math.log10(normGain(trBuf(t)))>=0?'+':'')+(20*Math.log10(normGain(trBuf(t)))).toFixed(1)} dB)`:''}</button><button class="act alt full" id="cTrim">Stille am Anfang entfernen</button>`}</div>
+  <label><span>Ausklingen beim Abschneiden: <span id="cFv">${t.fade??8}</span> ms</span><input id="cF" type="range" min="1" max="300" value="${t.fade??8}" data-def="8"></label>
   <div class="row"><button class="act" id="sL">Sample laden</button><button class="act alt" id="sR">Eingebauten Sound nutzen</button><button class="act full" id="cP2">Aus meinen Sounds laden</button><button class="act alt full" id="cM">Muster einfüllen</button>${padCtx?'<button class="act alt" id="cPd">Pad anders belegen</button><button class="act alt" id="cPs">Sound tauschen</button>':''}</div>${padCtx?`<p>Was das Pad macht</p><div class="segRow" id="cAct" style="flex-wrap:wrap">${PADACT.map(o=>`<button class="act ${((padCtx.c.acts&&padCtx.c.acts[padCtx.i])||'play')===o[0]?'sel':'alt'}" style="flex:1 1 45%" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`:''}
   <label>Name<input id="cN" type="text" maxlength="20" value="${esc(t.name)}"></label>
   <div class="row"><label>Gruppe<select id="cG"><option value="">Keine</option>${S.groups.map(g=>`<option${g===t.group?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
@@ -311,7 +315,7 @@ function channelSheet(){
   if(padCtx){$('#cPs').onclick=()=>{const p=padCtx;padSwapStart(p.c,p.i)};$('#cPd').onclick=()=>{const p=padCtx;padAssign(p.c,p.i)};$$('#cAct button').forEach(b=>b.onclick=()=>{const p=padCtx;p.c.acts=p.c.acts||[];p.c.acts[p.i]=b.dataset.v;t.mute=b.dataset.v==='holdo';drawPads();drawRack();save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y})}
   $('#cP2').onclick=()=>soundPicker('Sound für '+t.name,async(b,n)=>{await assignBuf(t,b,n);channelSheet();toast(n+' geladen')},channelSheet);
   $('#cBv').onclick=()=>bindSheet({kind:'tvol',tid:t.id,min:0,max:1.2,step:.01,label:`Kanal ${t.name}: Lautstärke`,short:t.name},channelSheet);$('#cBp').onclick=()=>bindSheet({kind:'tpan',tid:t.id,min:-1,max:1,step:.01,label:`Kanal ${t.name}: Panorama`,short:'Pan '+t.name},channelSheet);
-  $('#cR').onclick=()=>{Object.assign(t,{vol:.85,pan:0,tune:0,len:1,start:0});if(t.syn)t.syn={wave:t.syn.wave};wireTrack(t);drawAll();save();channelSheet();toast('Auf Standard zurückgesetzt')};
+  $('#cR').onclick=()=>{Object.assign(t,{vol:.85,pan:0,tune:0,len:1,start:0,fade:8,cut:true,norm:false,loop:false});if(t.syn)t.syn={wave:t.syn.wave};wireTrack(t);drawAll();save();channelSheet();toast('Auf Standard zurückgesetzt')};
   $('#sL').onclick=()=>{loadTrack=t.id;$('#file').click()};
   $('#sR').onclick=async()=>{delete buffers[t.id];t.sample=null;await idbDel('s'+t.id);drawAll();save();channelSheet()};
   $('#cN').oninput=e=>{t.name=e.target.value||t.src;drawRack();drawPads();save()};
@@ -321,6 +325,9 @@ function channelSheet(){
   $('#cP').oninput=e=>{t.pan=e.target.value/100;wireTrack(t);save()};
   $('#sT').oninput=e=>{t.tune=+e.target.value;$('#sTv').textContent=(t.tune>0?'+':'')+t.tune;save()};
   $('#sT').onchange=$('#sD').onchange=$('#cSt').onchange=()=>{if(ctx)trigger(t,ctx.currentTime,0)};
+  $('#cCut').onclick=()=>{t.cut=t.cut===false;save();channelSheet();toast(t.cut===false?'Der Sound klingt jetzt über sich selbst aus':'Der Sound schneidet sich selbst ab')};
+  if($('#cNorm')){$('#cNorm').onclick=()=>{t.norm=!t.norm;save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y;trigger(t,ctx.currentTime,0)};$('#cTrim').onclick=()=>{const b=trBuf(t);if(!b)return;const a=b.getChannelData(0),th=peakOf(b)*.02;let i=0;while(i<a.length&&Math.abs(a[i])<th)i++;t.start=Math.min(.9,Math.max(0,(i-40)/a.length));save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y;toast(i>40?`${Math.round(i/b.sampleRate*1000)} ms Stille entfernt`:'Am Anfang ist keine Stille');trigger(t,ctx.currentTime,0)}}
+  $('#cF').oninput=e=>{t.fade=+e.target.value;$('#cFv').textContent=t.fade;save()};
   $$('#cSrc button').forEach(b=>b.onclick=async()=>{await resume();const v=b.dataset.v;t.syn=v?{...(t.syn||{uni:v==='sine'||v==='triangle'?1:3}),wave:v}:null;drawRackWave();save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y;trigger(t,ctx.currentTime,0,.5)});
   $$('#sheet [data-y]').forEach(e=>{e.oninput=()=>{t.syn[e.dataset.y]=+e.value;$('#sy_'+e.dataset.y).textContent=e.value;save()};e.onchange=()=>trigger(t,ctx.currentTime,0,.5)});
   if($('#cLoop'))$('#cLoop').onclick=()=>{t.loop=!t.loop;save();channelSheet()};
