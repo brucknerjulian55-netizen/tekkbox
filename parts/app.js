@@ -54,8 +54,8 @@ rd(c,off){const L=this.L,p=this.w-off+L*2,i=Math.floor(p),f=p-i,b=this.b[c];retu
 process(inp,out){const I=inp[0],O=out[0];if(!O||!O.length)return true;const a=I[0]||null,bb=I[1]||a,sr=sampleRate,N=O[0].length,G=1/(.07*sr);
 for(let n=0;n<N;n++){const l=a?a[n]:0,r=bb?bb[n]:0,w=this.w;this.b[0][w]=l;this.b[1][w]=r;let ol=l,or=r;
 if(this.run){const pos=(currentTime+n/sr-this.anchor)/this.dur+this.apos;
-if(this.mode==='gb'){const p=((pos%16)+16)%16,i=Math.floor(p),fr=p-i,j=(i+1)%16,t0=this.time[i],t1=this.time[j],up=t1>=t0&&j!==0,off=(up?t0+(t1-t0)*fr:t0)*this.dur*sr;
-this.vs+=(this.vol[i]-this.vs)*.004;let g=this.vs;const e=(1-fr)*this.dur;if(!up&&e<.003)g*=e/.003;const pr=this.time[(i+15)%16],noJ=t0>=pr&&i!==0;if(!noJ&&fr*this.dur<.003)g*=fr*this.dur/.003;
+if(this.mode==='gb'){const Ln=this.vol.length,Cy=this.cyc2||16,p=((pos%Cy)+Cy)%Cy*Ln/Cy,i=Math.floor(p),fr=p-i,j=(i+1)%Ln,cd=this.dur*Cy/Ln,t0=this.time[i],t1=this.time[j],up=!this.snap&&t1>=t0&&j!==0,off=(up?t0+(t1-t0)*fr:t0)*this.dur*sr;
+this.vs+=(this.vol[i]-this.vs)*.004;let g=this.vs;const e=(1-fr)*cd;if(!up&&t1!==t0&&e<.003)g*=e/.003;const pr=this.time[(i+Ln-1)%Ln],noJ=this.snap?t0===pr:(t0>=pr&&i!==0);if(!noJ&&fr*cd<.003)g*=fr*cd/.003;
 ol=this.rd(0,off)*g;or=this.rd(1,off)*g}
 else{const p=((pos%this.cyc)+this.cyc)%this.cyc,off=p*this.dur*sr*.5,e=Math.min(p,this.cyc-p)*this.dur,g=Math.min(1,e/.004);
 if(this.keep){ol=or=0;for(let k=0;k<2;k++){this.ga[k]+=G;if(this.ga[k]>=1){this.ga[k]-=1;this.go[k]=off}const h=Math.sin(Math.PI*this.ga[k]),win=h*h;ol+=this.rd(0,this.go[k])*win;or+=this.rd(1,this.go[k])*win}ol*=g;or*=g}
@@ -146,6 +146,8 @@ const B=(t,f,g,q=1)=>({t,f,g,q}),EQP={
  Neutral:[B('lowshelf',70,0),B('peaking',400,0),B('peaking',2500,0),B('highshelf',9000,0)]},EQT=[['highpass','Hochpass'],['lowshelf','Low-Shelf'],['peaking','Bell'],['highshelf','High-Shelf'],['lowpass','Tiefpass']];
 const WSP={Linear:x=>x,Weich:x=>Math.tanh(x*2.2)/Math.tanh(2.2),Hart:x=>Math.max(-.55,Math.min(.55,x*1.6))/.55,Faltung:x=>Math.sin(x*Math.PI*1.5),Stufen:x=>Math.round(x*4)/4,Kurve:x=>Math.sign(x)*x*x};
 const GATEP={'Aus':[()=>1,()=>0],'Halftime':[()=>1,i=>i/2],'Gate 1/8':[i=>i%4<2?1:0,()=>0],'Gate 1/16':[i=>i%2?0:1,()=>0],'Pumpen':[i=>[.15,.5,.85,1][i%4],()=>0],'Stutter':[()=>1,i=>i%2],'Tape-Stop':[i=>1-i/18,i=>i*i/30],'Trance':[i=>[1,0,1,1,0,1,1,0,1,0,1,1,0,1,0,1][i],()=>0]};
+const GATEK={'Doppel-Kick':[()=>1,i=>i%4>=2?2:0,1],'Roll am Ende':[()=>1,i=>i>=12?i-12:0,1],'Roll halber Takt':[()=>1,i=>i>=8?(i-8)%4:0,1],'Roll 1/8':[()=>1,i=>i>=8?(i-8)%2*2:0,1],'Offbeat-Kick':[i=>i%4>=2?1:0,i=>i%4>=2?2:0,1],'Galopp':[i=>[1,0,1,1][i%4],()=>0],'Halbe Kicks':[i=>i%8<4?1:0,()=>0],'Drop letzter Beat':[i=>i<12?1:0,()=>0],'Drop halber Takt':[i=>i<8?1:0,()=>0],'Hart pumpen':[i=>[0,.2,.6,1][i%4],()=>0],'Swell':[i=>(i%4+1)/4,()=>0],'Gate am Ende':[i=>i<8||i%2===0?1:0,()=>0],'Tape-Down':[()=>1,i=>i>=12?Math.pow(i-11,2)/2.2:0],'Halbes Tempo':[()=>1,i=>i%8>=4?4:0,1],'Rumble-Stutter':[i=>i%4===3?.4:1,i=>i%4===1?1:i%4===3?1:0,1],'Kick-Stopp':[i=>i===0||i===4?1:0,()=>0]};
+let GUSER=[];const saveGU=()=>idbSet('gatep',JSON.stringify(GUSER));
 function makeFx(f){
   const P=f.p,i=ctx.createGain(),o=ctx.createGain(),n={in:i,out:o,set(){}},mixPair=()=>{const d=ctx.createGain(),w=ctx.createGain();i.connect(d).connect(o);return{d,w,mix(v){w.gain.value=v;d.gain.value=1-v}}};
   if(f.t==='eq'){const types=['lowshelf','peaking','peaking','highshelf'];n.b=types.map(t=>{const b=ctx.createBiquadFilter();b.type=t;b.Q.value=1;return b});
@@ -161,7 +163,7 @@ function makeFx(f){
   else if(f.t==='reverb'){const m=mixPair(),c=ctx.createConvolver();i.connect(c).connect(m.w).connect(o);let sz=0;
     n.set=()=>{if(sz!==P.size){sz=P.size;const L=ctx.sampleRate*sz|0,b=ctx.createBuffer(2,L,ctx.sampleRate);for(let k=0;k<2;k++){const a=b.getChannelData(k);for(let j=0;j<L;j++)a[j]=(Math.random()*2-1)*Math.pow(1-j/L,3)}c.buffer=b}m.d.gain.value=1;m.w.gain.value=P.mix/100*1.5}}
   else if((f.t==='gate'||f.t==='half')&&workletOK){const w=new AudioWorkletNode(ctx,'tekk-time',{numberOfOutputs:1,outputChannelCount:[2]});i.connect(w).connect(o);n.tf=w;
-    n.set=()=>{w.port.postMessage(f.t==='gate'?{mode:'gb',vol:P.vol,time:P.time,mix:P.mix/100}:{mode:'half',cyc:P.cyc,keep:P.keep,mix:P.mix/100});syncTF(w)}}
+    n.set=()=>{w.port.postMessage(f.t==='gate'?{mode:'gb',vol:P.vol,time:P.time,mix:P.mix/100,cyc2:(P.bars||1)*16,snap:!!P.snap}:{mode:'half',cyc:P.cyc,keep:P.keep,mix:P.mix/100});syncTF(w)}}
   else i.connect(o);
   n.set();return n;
 }
@@ -452,11 +454,18 @@ function slotSheet(i){
   $('#sC').onclick=closeSheet;
 }
 const fxNode=(i,k)=>slotN[i]&&slotN[i].fxn[k]&&slotN[i].fxn[k].n;
+const segG=(id,o,v)=>`<div class="segRow" id="${id}">${o.map(x=>`<button class="act ${x[0]==v?'sel':'alt'}" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>`;
 function fxSheet(i,k){
   const f=S.slots[i].fx[k],D=FX[f.t],P=f.p,push=()=>{const n=fxNode(i,k);if(n)n.set();save()};
   let h=`<h2>${D.name}</h2>`;
   if(f.t==='eq')h+=`<p>Ziehe die Punkte: links, rechts für die Frequenz, hoch, runter für die Lautstärke.</p><div class="row3">${Object.keys(EQP).map(n=>`<button class="act alt" data-q="${n}">${n}</button>`).join('')}</div><canvas class="ed" id="eqC" height="220"></canvas><div id="eqI"></div><div class="row"><label><span>Punkt <span id="eqN">1</span></span><select id="eqT">${EQT.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select></label><label><span>Breite (Q): <span id="eqQv"></span></span><input id="eqQ" type="range" min=".3" max="10" step=".1" data-def="1"></label></div>`;
-  if(f.t==='gate')h+=`<p>Male die Kurve über einen Takt. Obere Zeile: Lautstärke. Untere Zeile: Zeitversatz, damit wird der Sound langsamer, stottert oder stoppt.</p><canvas class="ed" id="gaC" height="240"></canvas><div class="row3">${Object.keys(GATEP).map(n=>`<button class="act alt" data-p="${n}">${n}</button>`).join('')}</div>`;
+  if(f.t==='gate')h+=`<p>Male die Kurve über einen Takt. Obere Zeile: Lautstärke. Untere Zeile: Zeitversatz, damit wird der Sound langsamer, stottert oder stoppt.</p><canvas class="ed" id="gaC" height="240"></canvas>
+  <div class="row3"><button class="act alt" id="gA">Alles an</button><button class="act alt" id="gX">Alles aus</button><button class="act alt" id="gI">Umkehren</button></div>
+  <p style="margin-bottom:4px">Raster</p>${segG('gRes',[[0,'1/16'],[1,'1/32']],P.fine?1:0)}<p style="margin-bottom:4px">Länge</p>${segG('gLen',[[1,'1 Takt'],[2,'2 Takte']],P.bars||1)}<p style="margin-bottom:4px">Zeitlinie</p>${segG('gSn',[[0,'Gleiten'],[1,'Springen (Roll)']],P.snap?1:0)}
+  <h3>Kick-Presets</h3><div class="row3">${Object.keys(GATEK).map(n=>`<button class="act alt" data-k="${n}">${n}</button>`).join('')}</div>
+  <h3>Allgemein</h3><div class="row3">${Object.keys(GATEP).map(n=>`<button class="act alt" data-p="${n}">${n}</button>`).join('')}</div>
+  <h3>Meine Gross Beats</h3>${GUSER.length?'':'<p>Noch keine gespeichert.</p>'}<div class="pkGal">${GUSER.map((g,j)=>`<div class="pkRow" style="grid-template-columns:minmax(0,1fr) 44px"><button class="lbN" data-u="${j}">${esc(g.name)}</button><button class="lbP" data-ux="${j}" aria-label="${esc(g.name)} löschen">✕</button></div>`).join('')}</div>
+  <div class="row"><button class="act full" id="gS">Als eigenen Gross Beat speichern</button></div>`;
   if(f.t==='shape')h+=`<p>Male die Kennlinie: Sie zeigt, wie das Signal umgeformt wird. Die Diagonale lässt den Sound unverändert.</p><canvas class="ed" id="wsC" height="240"></canvas><div class="row3">${Object.keys(WSP).map(n=>`<button class="act alt" data-w="${n}">${n}</button>`).join('')}</div><div class="row"><button class="act ${P.sym?'sel':'alt'}" id="wsS">Symmetrisch</button><button class="act ${P.sym?'alt':'sel'}" id="wsF">Frei</button></div>`;
   if(f.t==='delay')h+=`<p>Finger links, rechts: Zeit. Finger hoch, runter: Rückkopplung.</p><canvas class="ed" id="dlX" height="190"></canvas>`;
   if(f.t==='half')h+=`<p>Spielt die Melodie halb so schnell und springt am Ende jedes Abschnitts zurück.</p><div class="row"><button class="act ${P.keep?'':'alt'}" id="hK">Tonhöhe halten</button><button class="act ${P.keep?'alt':''}" id="hT">Oktave tiefer</button></div><label>Abschnitt<select id="hC"><option value="8"${P.cyc==8?' selected':''}>2 Beats</option><option value="16"${P.cyc==16?' selected':''}>1 Takt</option><option value="32"${P.cyc==32?' selected':''}>2 Takte</option></select></label>`;
@@ -470,7 +479,14 @@ function fxSheet(i,k){
   if(D.o)$('#fO').onchange=e=>{P[D.o[0]]=e.target.value;push()};
   $('#fB').onclick=()=>{edStop();slotSheet(i)};
   if(f.t==='half'){$('#hK').onclick=()=>{P.keep=1;push();fxSheet(i,k)};$('#hT').onclick=()=>{P.keep=0;push();fxSheet(i,k)};$('#hC').onchange=e=>{P.cyc=+e.target.value;push()}}
-  if(f.t==='gate'){$$('#sheet [data-p]').forEach(b=>b.onclick=()=>{const[v,t]=GATEP[b.dataset.p];P.vol=P.vol.map((_,j)=>v(j));P.time=P.time.map((_,j)=>t(j));push();drawGate()});gateEd(P,push)}
+  if(f.t==='gate'){const L=()=>P.vol.length,re=()=>{const y=$('#sheet').scrollTop;fxSheet(i,k);$('#sheet').scrollTop=y},ap=(o)=>{const[v,t,sn]=o,br=P.bars||1;P.vol=P.vol.map((_,j)=>v(Math.floor(j*16*br/L())%16));P.time=P.time.map((_,j)=>t(j*16*br/L()%16));P.snap=sn?1:0;push();re()};
+    $$('#sheet [data-p]').forEach(b=>b.onclick=()=>ap(GATEP[b.dataset.p]));$$('#sheet [data-k]').forEach(b=>b.onclick=()=>ap(GATEK[b.dataset.k]));gateEd(P,push);
+    $('#gA').onclick=()=>{P.vol=P.vol.map(()=>1);push();drawGate()};$('#gX').onclick=()=>{P.vol=P.vol.map(()=>0);P.time=P.time.map(()=>0);push();drawGate()};$('#gI').onclick=()=>{P.vol=P.vol.map(v=>1-v);push();drawGate()};
+    const rs=(nb,nf)=>{const n=16*nb*(nf?2:1),o=L(),pv=P.vol,pt=P.time;P.vol=Array.from({length:n},(_,j)=>pv[Math.floor(j*o/n)]??pv[(Math.floor(j*o/n))%o]);P.time=Array.from({length:n},(_,j)=>pt[Math.floor(j*o/n)]);P.bars=nb;P.fine=nf;push();re()};
+    $$('#gRes button').forEach(b=>b.onclick=()=>rs(P.bars||1,+b.dataset.v));$$('#gLen button').forEach(b=>b.onclick=()=>{const nb=+b.dataset.v,ob=P.bars||1;if(nb===ob)return;const n=P.vol.length;if(nb>ob){P.vol=[...P.vol,...P.vol];P.time=[...P.time,...P.time]}else{P.vol=P.vol.slice(0,n/2);P.time=P.time.slice(0,n/2)}P.bars=nb;push();re()});
+    $$('#gSn button').forEach(b=>b.onclick=()=>{P.snap=+b.dataset.v;push();re()});
+    $$('#sheet [data-u]').forEach(b=>b.onclick=()=>{const g=GUSER[+b.dataset.u];Object.assign(P,JSON.parse(JSON.stringify({vol:g.vol,time:g.time,snap:g.snap,bars:g.bars,fine:g.fine})));push();re()});$$('#sheet [data-ux]').forEach(b=>b.onclick=()=>{GUSER.splice(+b.dataset.ux,1);saveGU();re()});
+    $('#gS').onclick=()=>{openSheet(`<h2>Gross Beat speichern</h2><p>Er steht dir in jedem Beat-Gate unter Meine Gross Beats bereit.</p><label>Name<input id="gN" type="text" maxlength="22" value="Mein Gross Beat ${GUSER.length+1}"></label><div class="row"><button class="act" id="gOk">Speichern</button><button class="act alt" id="gNo">Abbrechen</button></div>`);$('#gNo').onclick=()=>fxSheet(i,k);$('#gOk').onclick=()=>{GUSER.push({name:$('#gN').value.trim()||'Gross Beat',vol:[...P.vol],time:[...P.time],snap:P.snap||0,bars:P.bars||1,fine:P.fine||0});saveGU();toast('Gross Beat gespeichert');fxSheet(i,k)}}}
   if(f.t==='eq'){eqEd(i,k,P,push);$$('#sheet [data-q]').forEach(b=>b.onclick=()=>{P.b=EQP[b.dataset.q].map(x=>({...x}));push();eqPick(0)})}
   if(f.t==='shape')wsEd(i,k,f,P,push);
   if(f.t==='delay'){const c=$('#dlX');xyCanvas(c,190,()=>[(P.steps-1)/11,P.fb/90],(x,y)=>{P.steps=Math.round(x*11)+1;P.fb=Math.round(y*90);['steps','fb'].forEach(a=>{const e=$(`[data-k="${a}"]`);e.value=P[a];$('#v_'+a).textContent=P[a]});push()})}
@@ -490,10 +506,10 @@ function wsEd(i,k,f,P,push){
   $('#wsS').onclick=()=>{P.sym=1;push();fxSheet(i,S.slots[i].fx.indexOf(f))};$('#wsF').onclick=()=>{P.sym=0;push();fxSheet(i,S.slots[i].fx.indexOf(f))};
 }
 function gateEd(P,push){
-  const c=$('#gaC'),{g,w,h}=sizeCanvas(c,240),H=h/2,C=prCol();
-  drawGate=()=>{g.clearRect(0,0,w,h);const bw=w/16;for(let i=0;i<16;i++){g.fillStyle=i%4?C('--deep'):C('--line');g.fillRect(i*bw+1,0,bw-2,H-3);g.fillRect(i*bw+1,H+3,bw-2,H-3);g.fillStyle=C('--lit');const v=P.vol[i]*(H-3);g.fillRect(i*bw+1,H-3-v,bw-2,v);g.fillStyle=C('--ice');g.fillRect(i*bw+1,H+3,bw-2,P.time[i]/8*(H-3))}};drawGate();
-  const paint=e=>{const r=c.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,i=Math.max(0,Math.min(15,Math.floor(x/w*16)));if(lane<0)lane=y<H?0:1;if(lane===0)P.vol[i]=Math.max(0,Math.min(1,1-y/(H-3)));else P.time[i]=Math.round(Math.max(0,Math.min(1,(y-H-3)/(H-3)))*16)/2;drawGate()};
-  let lane=-1,down=false;c.onpointerdown=e=>{down=true;lane=-1;c.setPointerCapture(e.pointerId);paint(e)};c.onpointermove=e=>down&&paint(e);c.onpointerup=c.onpointercancel=()=>{if(down){down=false;push()}};
+  const c=$('#gaC'),{g,w,h}=sizeCanvas(c,240),H=h/2,C=prCol(),N=()=>P.vol.length;
+  drawGate=()=>{g.clearRect(0,0,w,h);const n=N(),bw=w/n,bt=n/((P.bars||1)*4);for(let i=0;i<n;i++){g.fillStyle=i%bt?C('--deep'):C('--line');g.fillRect(i*bw+.5,0,bw-1,H-3);g.fillRect(i*bw+.5,H+3,bw-1,H-3);g.fillStyle=C('--lit');const v=P.vol[i]*(H-3);g.fillRect(i*bw+.5,H-3-v,bw-1,v);g.fillStyle=C('--ice');g.fillRect(i*bw+.5,H+3,bw-1,Math.min(1,P.time[i]/8)*(H-3))}g.fillStyle=C('--dim');g.font='600 10px sans-serif';g.fillText('Lautstärke',4,11);g.fillText('Zeit',4,H+14)};drawGate();
+  const paint=e=>{const r=c.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,n=N(),i=Math.max(0,Math.min(n-1,Math.floor(x/w*n)));if(lane<0)lane=y<H?0:1;if(lane===0)P.vol[i]=Math.round(Math.max(0,Math.min(1,1-y/(H-3)))*20)/20;else P.time[i]=Math.round(Math.max(0,Math.min(1,(y-H-3)/(H-3)))*16)/2;drawGate();push()};
+  let lane=-1,down=false;c.onpointerdown=e=>{down=true;lane=-1;c.setPointerCapture(e.pointerId);paint(e)};c.onpointermove=e=>down&&paint(e);c.onpointerup=c.onpointercancel=()=>{down=false};
 }
 function eqEd(i,k,P,push){
   const c=$('#eqC'),{g,w,h}=sizeCanvas(c,220),C=prCol(),X=f=>Math.log(f/20)/Math.log(1000)*w,F=x=>20*Math.pow(1000,x/w),Y=d=>h/2-d/18*(h/2-10),D=y=>Math.max(-18,Math.min(18,(h/2-y)/(h/2-10)*18));
@@ -690,7 +706,7 @@ wirePiano();
 (async()=>{
   try{const j=localStorage.getItem('tekk-theme2');if(j)TH=JSON.parse(j)}catch(e){}
   await openDb();
-  try{const j=await idbGet('theme2');if(j)TH=JSON.parse(j);await loadBg();const l=await idbGet('lib');if(l)LIB=JSON.parse(l);const lp=await idbGet('livep');if(lp)LIVEP=JSON.parse(lp);const s=await idbGet('state');if(s){const d=JSON.parse(s);if(d.patterns&&d.patterns.length)S=migrate(d)}}catch(e){}
+  try{const j=await idbGet('theme2');if(j)TH=JSON.parse(j);await loadBg();const l=await idbGet('lib');if(l)LIB=JSON.parse(l);const lp=await idbGet('livep');if(lp)LIVEP=JSON.parse(lp);const gu=await idbGet('gatep');if(gu)GUSER=JSON.parse(gu);const s=await idbGet('state');if(s){const d=JSON.parse(s);if(d.patterns&&d.patterns.length)S=migrate(d)}}catch(e){}
   applyTheme();applyState();requestAnimationFrame(frame);checkUpdate(true)
 })();
 window.TEKK={get S(){return S},get ctx(){return ctx},get buffers(){return buffers},get builtin(){return builtin},get slotN(){return slotN},get workletOK(){return workletOK},get outAn(){return outAn},get TH(){return TH},PERF,fill(){TEKK.S.slots.forEach((s,i)=>{s.fx.forEach(f=>f.p=FX[f.t].d());rebuildSlot(i)})},get voices(){return voices},get sel(){return sel},get LIB(){return LIB},GALLERY,renderPatch};
