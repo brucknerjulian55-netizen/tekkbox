@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1b12c4">
+<title>Tekkbox</title>
+<style>
+:root{
+  --body:#1b12c4;--deep:#120a8c;--well:#0a0558;--line:#4a40ea;--ink:#f4f2ff;--dim:#b4afee;
+  --lit:#ffe600;--hot:#ff1f8f;--ice:#2df0ff;--rec:#ff2a2a;
+  --font:"Roboto Condensed","sans-serif-condensed","Arial Narrow",Roboto,system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--body);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-user-select:none;user-select:none;overscroll-behavior:none}
+button,select{font:inherit;color:inherit;border:0;background:none;padding:0;touch-action:manipulation;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--lit);outline-offset:1px}
+#app{height:100dvh;display:flex;flex-direction:column;gap:6px;padding:max(7px,env(safe-area-inset-top)) max(9px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(9px,env(safe-area-inset-left))}
+#top,#patBar{display:flex;align-items:center;gap:5px;flex:none}
+#main{flex:1;min-height:0;position:relative}
+.view{position:absolute;inset:0;display:none;flex-direction:column;gap:6px;min-height:0}
+.view.on{display:flex}
+#nav{flex:none;display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+#nav button{height:40px;border-radius:5px;font-weight:700;font-size:13.5px;background:var(--deep)}
+#nav button.on{background:var(--ink);color:var(--body)}
+
+.brand{font-weight:800;font-style:italic;font-size:21px;letter-spacing:-.5px;margin-right:auto;transform:skewX(-6deg)}
+.key{height:40px;min-width:40px;padding:0 8px;border-radius:5px;background:var(--deep);box-shadow:inset 0 -3px 0 var(--well);font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;flex:none}
+.key:active{transform:translateY(1px)}
+#play.on{background:var(--lit);color:var(--well)}
+#rec.on{background:var(--rec);color:#fff}
+.tempo{display:flex;align-items:center;background:var(--well);border-radius:5px;height:40px}
+.tempo button{width:31px;height:40px;font-size:21px;font-weight:700}
+#bpm{width:40px;text-align:center;font-size:22px;font-weight:800;color:var(--lit);font-variant-numeric:tabular-nums}
+#patName{flex:1;min-width:0;height:36px;border-radius:5px;background:var(--well);font-weight:700;font-size:16px;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#patName.queued{animation:blink .22s steps(2) infinite}
+@keyframes blink{50%{background:var(--lit);color:var(--well)}}
+.mini{height:36px;min-width:36px;padding:0 7px;border-radius:5px;background:var(--deep);font-weight:700;font-size:15px;flex:none}
+.mini.on{background:var(--hot);color:#fff}
+
+/* Pads */
+.stepGrid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;background:var(--well);padding:5px;border-radius:7px;flex:none}
+.st{height:32px;border-radius:3px;background:var(--deep);position:relative}
+.st.beat{background:color-mix(in srgb,var(--line) 55%,var(--deep))}
+.st.on{background:var(--c,var(--lit))}
+.st.ph{outline:2px solid var(--ink);outline-offset:-2px}
+.st small{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--well)}
+#pads{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:6px}
+.pad{--c:var(--lit);position:relative;border-radius:9px;background:var(--deep);border:2px solid var(--line);touch-action:none;overflow:hidden;text-align:left;padding:7px;display:flex;flex-direction:column;justify-content:space-between;min-height:0}
+.pad b{font-size:17px;font-weight:800;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pad i{font-style:normal;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pad.sel{border-color:var(--c)}.pad.muted{opacity:.35}
+.pad::before{content:"";position:absolute;inset:0;background:var(--c);opacity:var(--glow,0);pointer-events:none}
+.pad>*{position:relative}.pad.note{--c:var(--ice)}.pad.note b{font-size:22px}
+#mode{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;flex:none}
+.seg{height:34px;border-radius:4px;background:var(--deep);font-weight:700;font-size:15px}
+.seg.on{background:var(--hot);color:#fff}
+.faders{display:grid;grid-template-columns:2fr 1fr;gap:10px;flex:none}
+.fader{display:grid;gap:0;font-size:13px;color:var(--dim);font-weight:600}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;margin:0;background:transparent;touch-action:none}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:2px;background:var(--well)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:26px;margin-top:-9px;border-radius:4px;background:var(--ink);box-shadow:inset 0 0 0 2px var(--body)}
+input[type=range]::-moz-range-track{height:8px;background:var(--well)}
+input[type=range]::-moz-range-thumb{width:28px;height:26px;border:0;border-radius:4px;background:var(--ink)}
+.holds{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;flex:none}
+.hold{height:38px;border-radius:5px;background:var(--deep);box-shadow:inset 0 -3px 0 var(--well);font-weight:700;font-size:15px;touch-action:none}
+.hold.on{background:var(--ice);color:var(--well)}
+
+/* Channel Rack */
+.chips{display:flex;gap:4px;overflow-x:auto;flex:none;scrollbar-width:none}
+.chip{height:32px;padding:0 11px;border-radius:16px;background:var(--deep);font-weight:700;font-size:14px;white-space:nowrap;flex:none}
+.chip.on{background:var(--ice);color:var(--well)}
+#rackScroll{flex:1;min-height:0;overflow:auto;background:var(--well);border-radius:7px;touch-action:pan-x pan-y}
+.rRow{display:flex;align-items:stretch;height:44px;width:max-content;min-width:100%;border-bottom:1px solid var(--deep)}
+.rHead{position:sticky;left:0;z-index:2;display:flex;width:128px;flex:none;background:var(--well);gap:2px;padding:4px 3px 4px 4px}
+.rMute{width:20px;border-radius:3px;background:var(--c);flex:none}
+.rMute.off{background:var(--deep)}
+.rName{flex:1;min-width:0;text-align:left;padding:0 5px;font-weight:700;font-size:15px;border-radius:3px;background:var(--deep);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rName.sel{background:var(--ink);color:var(--body)}
+.rOpt{width:24px;border-radius:3px;background:var(--deep);font-weight:800;flex:none}
+.rCells{display:flex;gap:2px;padding:5px 5px 5px 2px}
+.rc{width:27px;border-radius:3px;background:var(--deep);position:relative;flex:none;font-size:11px;font-weight:800;color:var(--well)}
+.rc.beat{background:color-mix(in srgb,var(--line) 55%,var(--deep))}
+.rc.barS{margin-left:7px}
+.rc.on{background:var(--c)}.rc.ph{outline:2px solid var(--ink);outline-offset:-2px}
+.addRow{padding:7px;position:sticky;left:0;width:max-content}
+
+/* Piano Roll */
+.prBar{display:flex;gap:4px;flex:none;align-items:center;overflow-x:auto;scrollbar-width:none}
+#prCh{flex:1;min-width:0}
+#ov .mini{flex:none;width:42px}
+.prBar select{height:36px;border-radius:5px;background:var(--deep);font-weight:700;font-size:15px;padding:0 5px;flex:none}
+.prBar select option{background:var(--deep)}
+#prScroll{flex:1;min-height:0;overflow:auto;background:var(--well);border-radius:7px;position:relative}
+#prInner{display:flex;width:max-content;position:relative}
+#prKeys{position:sticky;left:0;z-index:3;width:42px;flex:none}
+.pk{display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:12px;font-weight:700;background:var(--ink);color:var(--well);border-bottom:1px solid var(--dim);width:100%}
+.pk.blk{background:var(--deep);color:var(--dim)}
+#prCanvas{display:block;touch-action:none}
+#prHead{position:absolute;top:0;bottom:0;left:42px;width:2px;background:var(--lit);pointer-events:none;z-index:2;display:none}
+
+/* Song */
+#songScroll{flex:1;min-height:0;overflow:auto;background:var(--well);border-radius:7px;padding:5px}
+.sRow{display:flex;gap:2px;margin-bottom:3px;width:max-content}
+.sLab{position:sticky;left:0;z-index:2;width:48px;background:var(--well);font-size:13px;font-weight:700;color:var(--dim);display:flex;align-items:center;flex:none}
+.sc{width:40px;height:54px;background:var(--deep);border-radius:3px;font-size:12px;font-weight:800;flex:none;overflow:hidden;color:var(--well)}
+.sc.fill{background:var(--ice)}.sc.cont{background:color-mix(in srgb,var(--ice) 65%,var(--deep))}
+.sc.ph{outline:2px solid var(--ink);outline-offset:-2px}
+.sBars .sc{height:24px;background:none;color:var(--dim)}
+.note{font-size:14px;color:var(--dim);line-height:1.3;margin:0}
+
+/* Mixer */
+#mixList{flex:1;min-height:0;overflow:auto;display:grid;gap:4px;align-content:start}
+.mx{background:var(--well);border-radius:6px;padding:6px 8px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) 30px;gap:2px 8px;align-items:center}
+.mxN{text-align:left;font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mxF{font-size:12px;font-weight:600;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.mxM{height:30px;border-radius:4px;background:var(--deep);font-weight:700;font-size:13px}
+.mxM.on{background:var(--rec);color:#fff}
+.mx input[type=range]::-webkit-slider-runnable-track{background:var(--deep)}
+.mtr{grid-column:1/-1;height:5px;background:var(--deep);border-radius:2px;overflow:hidden}
+.mtr i{display:block;height:100%;width:0;background:var(--lit)}
+
+/* Bau-Modus */
+#bTabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:none}
+#bSynth,#bLib{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+#bSynth input[type=range]{touch-action:pan-y}
+#bSynth h3{margin:5px 0 0;font-size:16px;font-style:italic;font-weight:800}
+#syP{flex:1;width:100%}
+.row2{display:flex;gap:4px;flex:none}.row2 .key{flex:1;font-size:14px}
+.fld{flex:1;min-width:0;display:grid;font-size:13px;color:var(--dim);font-weight:600}.fld select{height:36px;border-radius:5px;background:var(--deep);color:var(--ink);font-weight:700;padding:0 4px}.fld select option,#syP option{background:var(--deep)}
+.syGrid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.syGrid .fader b{color:var(--ink)}
+#syNotes .mini{flex:1}
+.libList{flex:1;min-height:0;overflow:auto;display:grid;gap:3px;align-content:start}
+.lb{display:grid;grid-template-columns:46px minmax(0,1fr);gap:3px}
+.lbP,.lbN{height:44px;border-radius:5px;background:var(--deep);font-weight:700;font-size:15px}.lbP{background:var(--well);color:var(--lit)}
+.lbN{text-align:left;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+#rackWaveBox{position:relative;flex:none;height:56px;background:var(--well);border-radius:6px;overflow:hidden}
+#rackWave{display:block;width:100%;height:56px}
+#rackWaveN{position:absolute;left:6px;top:3px;font-size:12px;font-weight:700;color:var(--ink);pointer-events:none;text-shadow:0 0 3px var(--well)}
+/* Liveplay */
+#liveTop{display:flex;gap:4px;flex:none}#liveTop .mini{flex:1}#liveEditBtn{flex:1.3!important}
+#liveArea{flex:1;min-height:0;position:relative;background:var(--well);border-radius:7px;overflow:hidden}
+#liveArea.edit{background-image:linear-gradient(var(--deep) 1px,transparent 1px),linear-gradient(90deg,var(--deep) 1px,transparent 1px);background-size:10% 10%}
+.lc{position:absolute;border-radius:8px;background:var(--deep);border:2px solid var(--c);touch-action:none;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.lc.btn.down,.lc.btn.act{background:var(--c);color:var(--well)}
+.lcL{position:relative;font-weight:800;font-size:15px;text-align:center;padding:2px;overflow-wrap:anywhere;pointer-events:none;mix-blend-mode:normal;text-shadow:0 0 3px var(--well)}
+.lc.btn.down .lcL,.lc.btn.act .lcL{text-shadow:none}
+.lcF{position:absolute;left:0;bottom:0;background:var(--c);opacity:.65;height:100%;pointer-events:none}.lc[data-v="1"] .lcF{width:100%;height:0}
+.lcR{position:absolute;right:0;bottom:0;width:26px;height:26px;background:var(--ink);border-radius:6px 0 0 0}
+.edit .lc{border-style:dashed}
+.lcD{position:absolute;width:26px;height:26px;margin:-13px;border-radius:50%;background:var(--c);pointer-events:none}
+.lcH,.lcV{position:absolute;background:var(--c);opacity:.5;pointer-events:none}.lcH{left:0;right:0;height:1px}.lcV{top:0;bottom:0;width:1px}
+.lc.xy{align-items:flex-start;justify-content:flex-start}
+
+/* Sheets */
+#sheetBg{position:fixed;inset:0;background:color-mix(in srgb,var(--well) 75%,transparent);display:none;z-index:5}
+#sheet{position:fixed;left:0;right:0;bottom:0;max-height:90dvh;overflow:auto;background:var(--ink);color:var(--well);border-radius:12px 12px 0 0;padding:14px 15px max(16px,env(safe-area-inset-bottom));display:none;z-index:6;max-width:560px;margin:auto}
+.open #sheetBg,.open #sheet{display:block}
+#sheet h2{margin:0 0 3px;font-size:24px;font-weight:800;font-style:italic}
+#sheet p{margin:0 0 10px;font-size:15px;line-height:1.35;overflow-wrap:anywhere;opacity:.8}
+#sheet .row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px}
+#sheet .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.act{min-height:46px;border-radius:6px;background:var(--body);color:var(--ink);font-weight:700;font-size:15px;padding:6px 8px}
+.act.alt{background:color-mix(in srgb,var(--body) 14%,var(--ink));color:var(--well)}
+.act.sel{background:var(--hot);color:#fff}
+.act.full{grid-column:1/-1}
+#sheet label{display:grid;gap:0;font-size:15px;font-weight:600;margin-bottom:5px}
+#sheet select,#sheet input[type=text]{height:42px;border-radius:5px;background:color-mix(in srgb,var(--body) 14%,var(--ink));color:var(--well);padding:0 8px;font:inherit;font-weight:600;border:0;width:100%;-webkit-user-select:text;user-select:text}
+#sheet input[type=range]::-webkit-slider-runnable-track{background:color-mix(in srgb,var(--body) 22%,var(--ink))}
+#sheet input[type=range]::-webkit-slider-thumb{background:var(--body);box-shadow:none}
+.fxRow{display:grid;grid-template-columns:44px minmax(0,1fr) 38px 38px;gap:4px;margin-bottom:5px}
+.fxRow .act{min-height:42px;padding:2px}
+.colorRow{display:grid;grid-template-columns:1fr 54px;align-items:center;margin-bottom:5px;font-size:15px;font-weight:600}
+input[type=color]{width:54px;height:36px;border:0;padding:0;background:none}
+.prev{display:flex;height:14px;border-radius:3px;overflow:hidden;margin-top:3px}.prev i{flex:1}
+canvas.ed{width:100%;display:block;touch-action:none;border-radius:6px;background:var(--well);margin-bottom:8px}
+#toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:var(--lit);color:var(--well);font-weight:700;padding:9px 13px;border-radius:5px;z-index:9;display:none;max-width:90vw;text-align:center}
+#hint{position:fixed;inset:0;z-index:8;background:var(--body);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+#hint h1{font-size:64px;margin:0;font-style:italic;font-weight:800;transform:skewX(-6deg);letter-spacing:-2px}
+#hint p{font-size:17px;max-width:30ch;line-height:1.35;color:var(--dim);margin:8px 0 24px}
+#hint button{background:var(--lit);color:var(--well);height:60px;padding:0 30px;border-radius:6px;font-size:21px;font-weight:800}
+input[type=file]{display:none}
+@media (orientation:landscape) and (max-height:520px){
+  #app{display:grid;grid-template-columns:minmax(0,1fr) 92px;grid-template-rows:auto auto minmax(0,1fr);gap:4px 6px}
+  #top{grid-column:1/-1}#patBar{grid-column:1/-1}#main{grid-row:3}#nav{grid-row:3;grid-template-columns:1fr;grid-auto-rows:1fr}#nav button{height:auto}
+  .key,.tempo,.tempo button{height:34px}.mini,#patName{height:30px}
+  #pv.on{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr);gap:4px 6px}
+  #pads{grid-column:2;grid-row:1/4}.st{height:20px}.stepGrid{grid-column:1}.seg{height:28px}#mode{grid-column:1}
+  .faders{grid-column:1}.holds{grid-column:1;align-self:stretch}.hold{height:30px}input[type=range]{height:24px}.fader{font-size:12px}
+  #pv .liveCol{grid-column:1;grid-row:3;display:flex;flex-direction:column;gap:3px;justify-content:end;min-height:0}
+}
+.liveCol{display:contents}
+@media (prefers-reduced-motion:reduce){#patName.queued{animation:none;background:var(--lit);color:var(--well)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div class="brand">Tekkbox</div>
+    <div class="tempo" aria-label="Tempo"><button id="bpmDn" aria-label="Langsamer">−</button><div id="bpm">175</div><button id="bpmUp" aria-label="Schneller">+</button></div>
+    <button class="key" id="rec" aria-label="Aufnehmen">Rec</button>
+    <button class="key" id="play" aria-label="Start und Stopp">▶</button>
+    <button class="key" id="menu" aria-label="Menü">≡</button>
+  </div>
+  <div id="patBar">
+    <button class="mini" id="patPrev" aria-label="Vorheriges Pattern">‹</button>
+    <button id="patName" aria-label="Pattern bearbeiten"></button>
+    <button class="mini" id="patNext" aria-label="Nächstes Pattern">›</button>
+    <button class="mini" id="patAdd" aria-label="Neues Pattern">+</button>
+    <button class="mini" id="songMode">Song</button>
+  </div>
+  <div id="main">
+    <div class="view on" id="pv">
+      <div class="stepGrid" id="steps"></div>
+      <div id="pads"></div>
+      <div class="liveCol">
+        <div id="mode"><button class="seg on" data-m="play">Pads</button><button class="seg" data-m="note">Noten</button><button class="seg" data-m="mute">Stumm</button></div>
+        <div class="faders">
+          <label class="fader"><span id="fLab">Filter</span><input id="filter" type="range" min="-100" max="100" value="0"></label>
+          <label class="fader">Drive<input id="drive" type="range" min="0" max="100" value="25"></label>
+        </div>
+        <div class="holds"><button class="hold" data-h="r16">Roll 1/16</button><button class="hold" data-h="r32">Roll 1/32</button><button class="hold" data-h="echo">Echo</button><button class="hold" id="soundBtn">Sound</button></div>
+      </div>
+    </div>
+    <div class="view" id="rv"><div class="chips" id="groups"></div><div id="rackWaveBox"><canvas id="rackWave" aria-label="Waveform des gewählten Kanals, tippen zum Abspielen"></canvas><span id="rackWaveN"></span></div><div id="rackScroll"></div></div>
+    <div class="view" id="ov">
+      <div class="prBar">
+        <select id="prCh" aria-label="Kanal"></select>
+        
+        <button class="mini" id="prFill" style="width:auto">Muster</button><select id="prSnap" aria-label="Raster"><option value="1">1/16</option><option value="2">1/8</option><option value="4">1/4</option></select>
+        <button class="mini" id="prZoomOut" aria-label="Verkleinern">−</button><button class="mini" id="prZoomIn" aria-label="Vergrößern">+</button>
+      </div>
+      <div id="prScroll"><div id="prHead"></div><div id="prInner"><div id="prKeys"></div><canvas id="prCanvas"></canvas></div></div>
+    </div>
+    <div class="view" id="sv"><p class="note">Wähle oben ein Pattern und tippe in eine Spur. Tippe nochmal, um es zu entfernen. Mit „Song“ oben spielst du das Arrangement ab.</p><div id="songScroll"></div></div>
+    <div class="view" id="mv"><div id="mixList"></div></div>
+    <div class="view" id="lv"><div id="liveTop"><button class="mini" id="liveEditBtn">Bearbeiten</button><button class="mini" id="liveAddB">+ Knopf</button><button class="mini" id="liveAddS">+ Slider</button><button class="mini" id="liveAddX">+ XY</button></div><div id="liveArea"></div></div>
+    <div class="view" id="bv"><div id="bTabs"><button class="seg on" data-b="synth">Synth</button><button class="seg" data-b="lib">Sounds</button></div><div id="bSynth"></div><div id="bLib"></div></div>
+  </div>
+  <div id="nav">
+    <button class="on" data-v="pv">Pads</button><button data-v="rv">Rack</button><button data-v="ov">Piano</button><button data-v="sv">Song</button><button data-v="mv">Mixer</button><button data-v="lv">Live</button><button data-v="bv">Bau</button>
+  </div>
+</div>
+<div id="sheetBg"></div><div id="sheet" role="dialog" aria-modal="true"></div>
+<div id="toast" role="status"></div>
+<div id="hint"><h1>Tekkbox</h1><p>Deine Hardtekk-DAW. Läuft ohne Internet.</p><button id="go">Loslegen</button></div>
+<input id="file" type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a"><input id="projFile" type="file" accept=".json,application/json"><input id="packFile" type="file"><input id="libFile" type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a">
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+plugins { id 'com.android.application' }
+def vc = (project.findProperty('vc') ?: '1') as Integer
+android {
+  namespace 'app.tekkbox'
+  compileSdk 35
+  defaultConfig { applicationId 'app.tekkbox'; minSdk 26; targetSdk 35; versionCode vc; versionName "1.${vc}" }
+  buildFeatures { buildConfig true }
+  signingConfigs {
+    release {
+      storeFile file(System.getenv('KS_PATH') ?: 'missing.jks')
+      storePassword System.getenv('KS_PASS'); keyAlias 'tekkbox'; keyPassword System.getenv('KS_PASS')
+    }
+  }
+  buildTypes { release { minifyEnabled false; signingConfig signingConfigs.release } }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies { implementation 'androidx.webkit:webkit:1.11.0'; implementation 'androidx.core:core:1.13.1' }
