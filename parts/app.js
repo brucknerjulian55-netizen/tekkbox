@@ -20,7 +20,7 @@ function defaultState(){
   [a,b].forEach(p=>{put(p,0,K);put(p,1,O);put(p,3,O);put(p,2,C)});
   put(b,5,[0,3,8,11]);put(b,5,[6],3);put(b,5,[14],-2);
   put(c,3,O);put(c,2,C);put(c,6,[0,8]);put(d,0,K);put(d,1,O);put(d,4,[8,10,12,13,14,15]);put(d,7,[0]);
-  return{v:2,bpm:175,cur:0,nextId:9,songMode:false,patterns:[a,b,c,d],tracks:[0,1,2,3,4,5,8,6,7].map(i=>mkTrack(i,DEF[i])),
+  return{v:2,bpm:175,cur:0,nextId:9,songMode:false,patterns:[a,b,c,d],tracks:[0,1,2,3,4,5,8,6,7].map(i=>{const t=mkTrack(i,DEF[i]);if(i===8)t.syn={wave:'sawtooth'};return t}),
     groups:['Drums','Bass','Melodie','FX'],song:[],live:[],
     slots:[mkSlot('Master'),mkSlot('Kick'),mkSlot('Bass'),mkSlot('Drums'),mkSlot('Melodie'),mkSlot('FX'),mkSlot('Slot 6'),mkSlot('Slot 7'),mkSlot('Slot 8')]};
 }
@@ -90,17 +90,29 @@ function setFilter(v){if(!ctx)return;const t=ctx.currentTime,x=Math.abs(v)/100;
   lp.frequency.setTargetAtTime(v<0?20000*Math.pow(.012,x):20000,t,.012);hp.frequency.setTargetAtTime(v>0?20*Math.pow(200,x):20,t,.012);
   $('#fLab').textContent=v<-2?'Filter: Höhen weg':v>2?'Filter: Bass weg':'Filter'}
 function choke(id,t){(voices[id]||[]).forEach(v=>{try{v.g.gain.cancelScheduledValues(t);v.g.gain.setTargetAtTime(0,t,.004);v.s.stop(t+.03)}catch(e){}});voices[id]=[]}
+const SYND={wave:'sawtooth',uni:3,spread:12,a:.005,d:.2,s:.8,r:.12,cut:6000,res:1,oct:0};
+function synthVoice(t,time,n,gate){
+  const P={...SYND,...t.syn},f0=220*Math.pow(2,(t.tune+n+P.oct*12)/12),g=ctx.createGain(),fl=ctx.createBiquadFilter(),U=Math.max(1,P.uni|0),len=Math.max(.03,gate||.35),os=[];
+  fl.type='lowpass';fl.frequency.value=P.cut;fl.Q.value=P.res;fl.connect(g).connect(tBus[t.id].g);
+  const pk=.42,sus=Math.max(.0005,pk*P.s),a=Math.min(P.a,len*.8),dEnd=Math.min(a+P.d,len);
+  g.gain.setValueAtTime(0,time);g.gain.linearRampToValueAtTime(pk,time+a);const at=a+P.d>len?pk+(sus-pk)*(len-a)/P.d:sus;g.gain.linearRampToValueAtTime(at,time+dEnd);g.gain.setValueAtTime(at,time+len);g.gain.linearRampToValueAtTime(0,time+len+P.r);
+  for(let u=0;u<U;u++){const o=ctx.createOscillator(),x=U>1?u/(U-1)*2-1:0,og=ctx.createGain(),pn=ctx.createStereoPanner();o.type=P.wave;o.frequency.value=f0;o.detune.value=x*P.spread;og.gain.value=1/Math.sqrt(U);pn.pan.value=x*.6;o.connect(og).connect(pn).connect(fl);o.start(time);o.stop(time+len+P.r+.02);os.push(o)}
+  const v={g,s:{stop:w=>os.forEach(o=>{try{o.stop(w)}catch(e){}})}};(voices[t.id]=voices[t.id]||[]).push(v);os[0].onended=()=>{voices[t.id]=(voices[t.id]||[]).filter(x=>x!==v);try{g.disconnect();fl.disconnect()}catch(e){}};
+}
+const holdable=t=>t.syn||t.loop;
 function sound(t,time,n=0,gate=0){
+  if(t.syn&&ctx&&tBus[t.id])return synthVoice(t,time,n,gate);
   const buf=buffers[t.id]||builtin[t.src];if(!buf||!ctx||!tBus[t.id])return;
   const s=ctx.createBufferSource(),g=ctx.createGain();s.buffer=buf;s.playbackRate.value=Math.pow(2,(t.tune+n)/12);
   s.connect(g).connect(tBus[t.id].g);g.gain.setValueAtTime(1,time);
-  const off=(t.start||0)*buf.duration,full=(buf.duration-off)/s.playbackRate.value;let len=full*t.len;if(gate)len=Math.min(len,gate);
+  const off=(t.start||0)*buf.duration;if(t.loop){s.loop=true;s.loopStart=off+(buf.duration-off)*.06;s.loopEnd=off+(buf.duration-off)*.4}const full=t.loop?1e6:(buf.duration-off)/s.playbackRate.value;let len=t.loop?(gate||1):full*t.len;if(gate)len=Math.min(len,gate);
   s.start(time,off);
   if(len<full){g.gain.setValueAtTime(1,time+Math.max(0,len-.012));g.gain.linearRampToValueAtTime(0,time+len);s.stop(time+len+.01)}
   (voices[t.id]=voices[t.id]||[]).push({s,g});
   s.onended=()=>{voices[t.id]=(voices[t.id]||[]).filter(v=>v.s!==s)};
 }
-function trigger(t,time,n=0){choke(t.id,time);sound(t,time,n)}
+function trigger(t,time,n=0,gate=0){choke(t.id,time);sound(t,time,n,gate)}
+function holdVoice(t,n){trigger(t,ctx.currentTime,n,8);const u=()=>{choke(t.id,ctx.currentTime);window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u)}
 
 /* ---------- Effekte in den Mixer-Slots ---------- */
 const FX={
@@ -171,7 +183,7 @@ function sched(){
       if(roll&&t.id===sel)continue;
       const ns=[];for(const[P,st]of act)for(const x of P.n[t.id]||[])if(x.s===st)ns.push(x);
       if(skip[t.id]===pos){skip[t.id]=-1;continue}
-      if(ns.length&&!t.mute){hits.push(t.id);choke(t.id,nextT);ns.forEach(x=>sound(t,nextT,x.n,x.pr?x.l*d:0))}
+      if(ns.length&&!t.mute){hits.push(t.id);choke(t.id,nextT);ns.forEach(x=>sound(t,nextT,x.n,x.pr||holdable(t)?x.l*d:0))}
     }
     if(roll){const t=tr(sel),n=mode==='note'?note:0;if(t){trigger(t,nextT,n);if(roll===32)trigger(t,nextT+d/2,n)}}
     uiQ.push({t:nextT,p:pos,hits});nextT+=d;pos++;
@@ -213,14 +225,14 @@ function drawPads(){$$('.padGrid').forEach(g=>{const c=g._c;c.cols=c.cols||4;c.r
 function flash(e){e.style.setProperty('--glow',.9);clearTimeout(e._t);e._t=setTimeout(()=>e.style.setProperty('--glow',0),90)}
 async function padDown(c,i,e){
   await resume();flash(e);
-  if(mode==='note'){note=SCALE[i%8]+12*Math.floor(i/8);const t=tr(sel);if(t){trigger(t,ctx.currentTime,note);record(sel,note)}drawPads();return}
+  if(mode==='note'){note=SCALE[i%8]+12*Math.floor(i/8);const t=tr(sel);if(t){if(holdable(t))holdVoice(t,note);else trigger(t,ctx.currentTime,note);record(sel,note)}drawPads();return}
   const t=tr(c.ids[i]);if(!t)return;
   if(mode==='mute'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();save();return}
   if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime);drawPads();const u=()=>{t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
   const act=(c.acts&&c.acts[i])||'play';
   if(act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();drawRack();save();return}
   if(act==='holdm'||act==='holdo'){const on=act==='holdm';t.mute=on;if(on)choke(t.id,ctx.currentTime);drawPads();const u=()=>{t.mute=!on;if(!on)choke(t.id,ctx.currentTime);drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
-  const ch=sel!==t.id;sel=t.id;trigger(t,ctx.currentTime,0);record(t.id,0);if(ch){drawPads();drawSteps()}
+  const ch=sel!==t.id;sel=t.id;if(holdable(t))holdVoice(t,0);else trigger(t,ctx.currentTime,0);record(t.id,0);if(ch){drawPads();drawSteps()}
 }
 function setMode(m){mode=m;$$('.seg').forEach(b=>b.classList.toggle('on',b.dataset.m===m));drawPads()}
 
@@ -274,11 +286,13 @@ function drawRack(){
     r.append(h,c);b.append(r)});
   const w=el('div','addRow'),a=el('button','mini','+ Kanal');a.onclick=addChannelSheet;const f=el('button','mini','Muster');f.onclick=fillSheet;f.style.marginLeft='4px';w.append(a,f);b.append(w);b.scrollLeft=keep;drawRackWave();
 }
+const SYNS=[['oct','Oktave',-3,3,1],['uni','Stimmen',1,5,1],['spread','Verstimmung',0,40,1],['a','Attack',.001,1,.001],['d','Decay',.01,2,.01],['s','Sustain',0,1,.01],['r','Release',.01,2,.01],['cut','Filter',100,18000,10],['res','Resonanz',.3,14,.1]];
 function channelSheet(){
   const t=tr(sel);if(!t)return;
   const shared=padCtx?S.live.reduce((a,c)=>a+(c.ids||[]).filter(x=>x===t.id).length,0):0;
   openSheet(`<h2>${esc(t.name)}</h2><p>${t.sample?'Dein Sample: '+esc(t.sample):'Eingebauter Sound: '+t.src}</p>${shared>1?`<div class="mcR" style="--s:var(--lit)"><b>Dieser Kanal liegt auf ${shared} Pads</b><span>Name, Stumm und Noten gelten für alle diese Pads. Für eine eigene Spur trenne dieses Pad ab.</span></div><div class="row"><button class="act full" id="cSp">Eigenen Kanal für dieses Pad anlegen</button></div>`:''}
-  <canvas class="ed" id="cW" height="90" aria-label="Waveform, tippen zum Abspielen"></canvas>
+  <p style="margin-bottom:4px">Klangquelle</p><div class="segRow" id="cSrc" style="flex-wrap:wrap">${[['','Sample'],['sine','Sinus'],['triangle','Dreieck'],['sawtooth','Säge'],['square','Rechteck']].map(o=>`<button class="act ${(t.syn?t.syn.wave:'')===o[0]?'sel':'alt'}" style="flex:1 1 30%" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>
+  ${t.syn?`<p>Der Ton klingt genau so lange wie die Note.</p><div class="syGrid">${SYNS.map(p=>`<label class="fader"><span>${p[1]}: <b id="sy_${p[0]}">${t.syn[p[0]]??SYND[p[0]]}</b></span><input data-y="${p[0]}" type="range" min="${p[2]}" max="${p[3]}" step="${p[4]}" value="${t.syn[p[0]]??SYND[p[0]]}" data-def="${SYND[p[0]]}"></label>`).join('')}</div>`:`<canvas class="ed" id="cW" height="90" aria-label="Waveform, tippen zum Abspielen"></canvas><div class="row"><button class="act ${t.loop?'sel':'alt'} full" id="cLoop">Ton halten: ${t.loop?'An':'Aus'} (Sample wiederholt sich, solange die Note läuft)</button></div>`}
   <div class="row"><button class="act" id="sL">Sample laden</button><button class="act alt" id="sR">Eingebauten Sound nutzen</button><button class="act full" id="cP2">Aus meinen Sounds laden</button><button class="act alt full" id="cM">Muster einfüllen</button>${padCtx?'<button class="act alt" id="cPd">Pad anders belegen</button><button class="act alt" id="cPs">Sound tauschen</button>':''}</div>${padCtx?`<p>Was das Pad macht</p><div class="segRow" id="cAct" style="flex-wrap:wrap">${PADACT.map(o=>`<button class="act ${((padCtx.c.acts&&padCtx.c.acts[padCtx.i])||'play')===o[0]?'sel':'alt'}" style="flex:1 1 45%" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`:''}
   <label>Name<input id="cN" type="text" maxlength="20" value="${esc(t.name)}"></label>
   <div class="row"><label>Gruppe<select id="cG"><option value="">Keine</option>${S.groups.map(g=>`<option${g===t.group?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
@@ -294,7 +308,7 @@ function channelSheet(){
   if(padCtx){$('#cPs').onclick=()=>{const p=padCtx;padSwapStart(p.c,p.i)};$('#cPd').onclick=()=>{const p=padCtx;padAssign(p.c,p.i)};$$('#cAct button').forEach(b=>b.onclick=()=>{const p=padCtx;p.c.acts=p.c.acts||[];p.c.acts[p.i]=b.dataset.v;t.mute=b.dataset.v==='holdo';drawPads();drawRack();save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y})}
   $('#cP2').onclick=()=>soundPicker('Sound für '+t.name,async(b,n)=>{await assignBuf(t,b,n);channelSheet();toast(n+' geladen')},channelSheet);
   $('#cBv').onclick=()=>bindSheet({kind:'tvol',tid:t.id,min:0,max:1.2,step:.01,label:`Kanal ${t.name}: Lautstärke`,short:t.name},channelSheet);$('#cBp').onclick=()=>bindSheet({kind:'tpan',tid:t.id,min:-1,max:1,step:.01,label:`Kanal ${t.name}: Panorama`,short:'Pan '+t.name},channelSheet);
-  $('#cR').onclick=()=>{Object.assign(t,{vol:.85,pan:0,tune:0,len:1,start:0});wireTrack(t);drawAll();save();channelSheet();toast('Auf Standard zurückgesetzt')};
+  $('#cR').onclick=()=>{Object.assign(t,{vol:.85,pan:0,tune:0,len:1,start:0});if(t.syn)t.syn={wave:t.syn.wave};wireTrack(t);drawAll();save();channelSheet();toast('Auf Standard zurückgesetzt')};
   $('#sL').onclick=()=>{loadTrack=t.id;$('#file').click()};
   $('#sR').onclick=async()=>{delete buffers[t.id];t.sample=null;await idbDel('s'+t.id);drawAll();save();channelSheet()};
   $('#cN').oninput=e=>{t.name=e.target.value||t.src;drawRack();drawPads();save()};
@@ -304,7 +318,10 @@ function channelSheet(){
   $('#cP').oninput=e=>{t.pan=e.target.value/100;wireTrack(t);save()};
   $('#sT').oninput=e=>{t.tune=+e.target.value;$('#sTv').textContent=(t.tune>0?'+':'')+t.tune;save()};
   $('#sT').onchange=$('#sD').onchange=$('#cSt').onchange=()=>{if(ctx)trigger(t,ctx.currentTime,0)};
-  const wv=()=>drawWaveOn($('#cW'),trBuf(t),t.start||0,t.len);wv();$('#cW').onclick=async()=>{await resume();trigger(t,ctx.currentTime,0)};$('#cM').onclick=fillSheet;
+  $$('#cSrc button').forEach(b=>b.onclick=async()=>{await resume();const v=b.dataset.v;t.syn=v?{...(t.syn||{uni:v==='sine'||v==='triangle'?1:3}),wave:v}:null;drawRackWave();save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y;trigger(t,ctx.currentTime,0,.5)});
+  $$('#sheet [data-y]').forEach(e=>{e.oninput=()=>{t.syn[e.dataset.y]=+e.value;$('#sy_'+e.dataset.y).textContent=e.value;save()};e.onchange=()=>trigger(t,ctx.currentTime,0,.5)});
+  if($('#cLoop'))$('#cLoop').onclick=()=>{t.loop=!t.loop;save();channelSheet()};
+  const wv=()=>{if($('#cW'))drawWaveOn($('#cW'),trBuf(t),t.start||0,t.len)};wv();if($('#cW'))$('#cW').onclick=async()=>{await resume();trigger(t,ctx.currentTime,0)};$('#cM').onclick=fillSheet;
   $('#sD').oninput=e=>{t.len=e.target.value/100;wv();save()};
   $('#cSt').oninput=e=>{t.start=e.target.value/100;wv();save()};
   $('#cC').oninput=e=>{t.color=e.target.value;drawAll();save()};
@@ -314,7 +331,7 @@ function channelSheet(){
 function addChannelSheet(){
   if(S.tracks.length>=MAXCH){toast('Mehr als '+MAXCH+' Kanäle gehen nicht.');return}
   openSheet(`<h2>Neuer Kanal</h2><p>Wähle einen Startsound. Dein eigenes Sample lädst du danach über ⋯.</p><div class="row3">${DEF.map(d=>`<button class="act alt" data-s="${d[0]}">${d[0]}</button>`).join('')}</div><div class="row"><button class="act alt full" id="sC">Abbrechen</button></div>`);
-  $$('#sheet [data-s]').forEach(b=>b.onclick=()=>{const d=DEF.find(x=>x[0]===b.dataset.s),t=(fixIds(),mkTrack(S.nextId++,d));t.group=groupF||d[3];S.tracks.push(t);wireTrack(t);sel=t.id;drawAll();save();closeSheet()});
+  $$('#sheet [data-s]').forEach(b=>b.onclick=()=>{const d=DEF.find(x=>x[0]===b.dataset.s),t=(fixIds(),mkTrack(S.nextId++,d));if(d[0]==='Melodie')t.syn={wave:'sawtooth'};t.group=groupF||d[3];S.tracks.push(t);wireTrack(t);sel=t.id;drawAll();save();closeSheet()});
   $('#sC').onclick=closeSheet;
 }
 function groupSheet(){

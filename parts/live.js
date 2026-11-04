@@ -29,7 +29,7 @@ function liveDown(c){const tg=c.target,a=tg.split(':');
     if(c.act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}
     else if(c.act==='holdm'){t.mute=true;choke(t.id,ctx.currentTime);liveMark()}
     else if(c.act==='holdo'){t.mute=false;liveMark()}
-    else{trigger(t,ctx.currentTime,0);record(t.id,0)}}
+    else{if(holdable(t))holdVoice(t,0);else trigger(t,ctx.currentTime,0);record(t.id,0)}}
   else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}}
   else if(a[0]==='pat'){if(S.patterns[+a[1]])goPat(+a[1])}
   else if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);if(h){h.f.on=!h.f.on;rebuildSlot(h.i);liveMark();save()}}
