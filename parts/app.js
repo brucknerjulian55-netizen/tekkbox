@@ -209,7 +209,7 @@ function drawPads(){$$('.padGrid').forEach(g=>{const c=g._c;c.cols=c.cols||4;c.r
   const st=tr(sel);[...g.children].forEach((e,i)=>{const t=tr(c.ids[i]);e.style.outline='';
     if(mode==='note'){e.className='pad note';e.dataset.id='';e.innerHTML=`<b>${NOTE_NAMES[i%8]}</b><i>${st?esc(st.name):''}</i>`;if(SCALE[i%8]+12*Math.floor(i/8)===note)e.style.outline='2px solid var(--ink)';return}
     if(!t){e.className='pad empty';e.dataset.id='';e.innerHTML=liveEdit?'<b>+</b>':'';return}
-    e.dataset.id=t.id;e.className='pad'+(t.id===sel?' sel':'')+(t.mute?' muted':'');e.style.setProperty('--c',t.color);e.innerHTML=`<b>${esc(t.name)}</b><i>${t.sample?esc(t.sample):(t.mute?'stumm':'')}</i>`})})}
+    e.dataset.id=t.id;e.className='pad'+(t.id===sel?' sel':'')+(t.mute?' muted':'');e.style.setProperty('--c',t.color);const ac=(c.acts&&c.acts[i])||'play';e.innerHTML=`<b>${esc(t.name)}</b><i>${t.mute?'stumm':ac==='toggle'?'Tippen':ac==='holdm'||ac==='holdo'?'Halten':t.sample?esc(t.sample):''}</i>`})})}
 function flash(e){e.style.setProperty('--glow',.9);clearTimeout(e._t);e._t=setTimeout(()=>e.style.setProperty('--glow',0),90)}
 async function padDown(c,i,e){
   await resume();flash(e);
@@ -217,6 +217,9 @@ async function padDown(c,i,e){
   const t=tr(c.ids[i]);if(!t)return;
   if(mode==='mute'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();save();return}
   if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime);drawPads();const u=()=>{t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
+  const act=(c.acts&&c.acts[i])||'play';
+  if(act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();drawRack();save();return}
+  if(act==='holdm'||act==='holdo'){const on=act==='holdm';t.mute=on;if(on)choke(t.id,ctx.currentTime);drawPads();const u=()=>{t.mute=!on;if(!on)choke(t.id,ctx.currentTime);drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
   const ch=sel!==t.id;sel=t.id;trigger(t,ctx.currentTime,0);record(t.id,0);if(ch){drawPads();drawSteps()}
 }
 function setMode(m){mode=m;$$('.seg').forEach(b=>b.classList.toggle('on',b.dataset.m===m));drawPads()}
@@ -273,7 +276,7 @@ function channelSheet(){
   const t=tr(sel);if(!t)return;
   openSheet(`<h2>${esc(t.name)}</h2><p>${t.sample?'Dein Sample: '+esc(t.sample):'Eingebauter Sound: '+t.src}</p>
   <canvas class="ed" id="cW" height="90" aria-label="Waveform, tippen zum Abspielen"></canvas>
-  <div class="row"><button class="act" id="sL">Sample laden</button><button class="act alt" id="sR">Eingebauten Sound nutzen</button><button class="act full" id="cP2">Aus meinen Sounds laden</button><button class="act alt full" id="cM">Muster einfüllen</button>${padCtx?'<button class="act alt full" id="cPd">Pad anders belegen</button>':''}</div>
+  <div class="row"><button class="act" id="sL">Sample laden</button><button class="act alt" id="sR">Eingebauten Sound nutzen</button><button class="act full" id="cP2">Aus meinen Sounds laden</button><button class="act alt full" id="cM">Muster einfüllen</button>${padCtx?'<button class="act alt full" id="cPd">Pad anders belegen</button>':''}</div>${padCtx?`<p>Was das Pad macht</p><div class="segRow" id="cAct" style="flex-wrap:wrap">${PADACT.map(o=>`<button class="act ${((padCtx.c.acts&&padCtx.c.acts[padCtx.i])||'play')===o[0]?'sel':'alt'}" style="flex:1 1 45%" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`:''}
   <label>Name<input id="cN" type="text" maxlength="20" value="${esc(t.name)}"></label>
   <div class="row"><label>Gruppe<select id="cG"><option value="">Keine</option>${S.groups.map(g=>`<option${g===t.group?' selected':''}>${esc(g)}</option>`).join('')}</select></label>
   <label>Mixer-Slot<select id="cS">${S.slots.map((s,i)=>i?`<option value="${i}"${i===t.slot?' selected':''}>${i}: ${esc(s.name)}</option>`:'').join('')}</select></label></div>
@@ -284,7 +287,7 @@ function channelSheet(){
   <label>Länge<input id="sD" type="range" min="5" max="100" value="${t.len*100}" data-def="100"></label>
   <div class="colorRow"><span>Farbe</span><input id="cC" type="color" value="${t.color}"></div>
   <div class="row"><button class="act alt" id="cR">Standard</button><button class="act alt" id="cD">Kanal löschen</button><button class="act full" id="sC">Fertig</button></div>`);
-  if(padCtx)$('#cPd').onclick=()=>{const p=padCtx;padAssign(p.c,p.i)};
+  if(padCtx){$('#cPd').onclick=()=>{const p=padCtx;padAssign(p.c,p.i)};$$('#cAct button').forEach(b=>b.onclick=()=>{const p=padCtx;p.c.acts=p.c.acts||[];p.c.acts[p.i]=b.dataset.v;t.mute=b.dataset.v==='holdo';drawPads();drawRack();save();const y=$('#sheet').scrollTop;channelSheet();$('#sheet').scrollTop=y})}
   $('#cP2').onclick=()=>soundPicker('Sound für '+t.name,async(b,n)=>{await assignBuf(t,b,n);channelSheet();toast(n+' geladen')},channelSheet);
   $('#cR').onclick=()=>{Object.assign(t,{vol:.85,pan:0,tune:0,len:1,start:0});wireTrack(t);drawAll();save();channelSheet();toast('Auf Standard zurückgesetzt')};
   $('#sL').onclick=()=>{loadTrack=t.id;$('#file').click()};
