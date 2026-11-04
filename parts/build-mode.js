@@ -65,7 +65,7 @@ const CATS=[...new Set(GALLERY.map(g=>g.cat))];
 const saveLib=()=>idbSet('lib',JSON.stringify(LIB));
 function previewBuf(b){if(!ctx)return;try{previewSrc&&previewSrc.stop()}catch(e){}const s=ctx.createBufferSource();s.buffer=b;s.connect(slotN[0].in);s.start();previewSrc=s}
 async function assignBuf(t,buf,name){buffers[t.id]=buf;t.sample=name;await idbSet('s'+t.id,toWav(buf));drawAll();save()}
-async function newChannel(buf,name,cat){if(S.tracks.length>=MAXCH){toast('Mehr als '+MAXCH+' Kanäle gehen nicht.');return null}const t=mkTrack(S.nextId++,[name.slice(0,20),['#ffe600','#ff1f8f','#2df0ff','#b6ff3c','#ff8a1f'][S.tracks.length%5],5,null]);t.src='Kick';if(cat==='Live'&&!S.groups.includes('Live')){S.groups.push('Live')}t.group=S.groups.includes(cat)?cat:null;S.tracks.push(t);wireTrack(t);await assignBuf(t,buf,name);sel=t.id;return t}
+async function newChannel(buf,name,cat){if(S.tracks.length>=MAXCH){toast('Mehr als '+MAXCH+' Kanäle gehen nicht.');return null}fixIds();const t=mkTrack(S.nextId++,[name.slice(0,20),['#ffe600','#ff1f8f','#2df0ff','#b6ff3c','#ff8a1f'][S.tracks.length%5],5,null]);t.src='Kick';if(cat==='Live'&&!S.groups.includes('Live')){S.groups.push('Live')}t.group=S.groups.includes(cat)?cat:null;S.tracks.push(t);wireTrack(t);await assignBuf(t,buf,name);sel=t.id;return t}
 function drawBuild(){
   if(view!=='bv')return;$$('#bTabs .seg').forEach(b=>b.classList.toggle('on',b.dataset.b===bTab));$('#bSynth').style.display=bTab==='synth'?'':'none';$('#bLib').style.display=bTab==='lib'?'':'none';
   if(bTab==='synth')drawSynth();else drawLib();

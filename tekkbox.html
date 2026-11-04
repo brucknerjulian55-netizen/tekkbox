@@ -298,6 +298,7 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
 #prCh{min-width:76px}
 .bndC{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.bndC .chip{height:auto;min-height:32px;padding:4px 10px;white-space:normal;text-align:left;border-radius:2px}
 .bnR{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 6px;align-items:center;background:var(--deep);padding:6px 8px;margin-bottom:4px}.bnR b{grid-column:1/-1;font-size:14px}.bnR span{font-size:13px;color:var(--dim)}
+.lg{position:absolute;background:var(--lit);box-shadow:0 0 6px var(--lit);pointer-events:none;z-index:9}.lgX{top:0;bottom:0;width:1px}.lgY{left:0;right:0;height:1px}
 
 </style>
 </head>
@@ -330,7 +331,7 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
         <div class="holds"><button class="hold" data-h="r16">Roll 1/16</button><button class="hold" data-h="r32">Roll 1/32</button><button class="hold" data-h="echo">Echo</button><button class="hold" id="soundBtn">Sound</button></div>
       </div>
     </div>
-    <div class="view" id="rv"><div id="rackSel" style="display:none"><b id="rsN"></b><button class="mini" id="rsX">Leeren</button><button class="mini" id="rsD">Löschen</button><button class="mini" id="rsA">Alle</button><button class="mini" id="rsQ">Fertig</button></div><div class="chips" id="groups"></div><div id="rackWaveBox"><canvas id="rackWave" aria-label="Waveform des gewählten Kanals, tippen zum Abspielen"></canvas><span id="rackWaveN"></span></div><div id="rackScroll"></div></div>
+    <div class="view" id="rv"><div id="rackSel" style="display:none"><b id="rsN"></b><button class="mini" id="rsS">Tauschen</button><button class="mini" id="rsX">Leeren</button><button class="mini" id="rsD">Löschen</button><button class="mini" id="rsA">Alle</button><button class="mini" id="rsQ">Fertig</button></div><div class="chips" id="groups"></div><div id="rackWaveBox"><canvas id="rackWave" aria-label="Waveform des gewählten Kanals, tippen zum Abspielen"></canvas><span id="rackWaveN"></span></div><div id="rackScroll"></div></div>
     <div class="view" id="ov">
       <div class="prBar">
         <select id="prCh" aria-label="Kanal"></select>
@@ -448,7 +449,7 @@ const CATS=[...new Set(GALLERY.map(g=>g.cat))];
 const saveLib=()=>idbSet('lib',JSON.stringify(LIB));
 function previewBuf(b){if(!ctx)return;try{previewSrc&&previewSrc.stop()}catch(e){}const s=ctx.createBufferSource();s.buffer=b;s.connect(slotN[0].in);s.start();previewSrc=s}
 async function assignBuf(t,buf,name){buffers[t.id]=buf;t.sample=name;await idbSet('s'+t.id,toWav(buf));drawAll();save()}
-async function newChannel(buf,name,cat){if(S.tracks.length>=MAXCH){toast('Mehr als '+MAXCH+' Kanäle gehen nicht.');return null}const t=mkTrack(S.nextId++,[name.slice(0,20),['#ffe600','#ff1f8f','#2df0ff','#b6ff3c','#ff8a1f'][S.tracks.length%5],5,null]);t.src='Kick';if(cat==='Live'&&!S.groups.includes('Live')){S.groups.push('Live')}t.group=S.groups.includes(cat)?cat:null;S.tracks.push(t);wireTrack(t);await assignBuf(t,buf,name);sel=t.id;return t}
+async function newChannel(buf,name,cat){if(S.tracks.length>=MAXCH){toast('Mehr als '+MAXCH+' Kanäle gehen nicht.');return null}fixIds();const t=mkTrack(S.nextId++,[name.slice(0,20),['#ffe600','#ff1f8f','#2df0ff','#b6ff3c','#ff8a1f'][S.tracks.length%5],5,null]);t.src='Kick';if(cat==='Live'&&!S.groups.includes('Live')){S.groups.push('Live')}t.group=S.groups.includes(cat)?cat:null;S.tracks.push(t);wireTrack(t);await assignBuf(t,buf,name);sel=t.id;return t}
 function drawBuild(){
   if(view!=='bv')return;$$('#bTabs .seg').forEach(b=>b.classList.toggle('on',b.dataset.b===bTab));$('#bSynth').style.display=bTab==='synth'?'':'none';$('#bLib').style.display=bTab==='lib'?'':'none';
   if(bTab==='synth')drawSynth();else drawLib();
@@ -602,15 +603,16 @@ function wireLive(e,c){
   const slide=ev=>{const q=e.getBoundingClientRect();rngSet(c,c.target,e.dataset.v?1-(ev.clientY-q.top)/q.height:(ev.clientX-q.left)/q.width);e._show()};
   const knob=ev=>{rngSet(c,c.target,kv+(sy-ev.clientY)/170);e._show()};
   e.addEventListener('pointerdown',ev=>{if(c.type==='block'&&!liveEdit)return;ev.preventDefault();resume();e.setPointerCapture(ev.pointerId);sx=ev.clientX;sy=ev.clientY;
-    if(liveEdit){mode=ev.target.classList.contains('lcR')?'size':'move';ox=c.x;oy=c.y;ow=c.w;oh=c.h;moved=false;const pe=ev.target.closest&&ev.target.closest('.pad');padI=pe?[...pe.parentNode.children].indexOf(pe):-1;clearTimeout(lpT);if(mode==='move')lpT=setTimeout(()=>{if(!moved){mode=null;liveSheet(c)}},470);return}
+    if(liveEdit){mode=ev.target.classList.contains('lcR')?'size':'move';ox=c.x;oy=c.y;ow=c.w;oh=c.h;moved=false;const pe=ev.target.closest&&ev.target.closest('.pad');padI=pe?[...pe.parentNode.children].indexOf(pe):-1;clearTimeout(lpT);if(mode==='move')lpT=setTimeout(()=>{if(!moved){mode=null;if(padI>=0&&c.type==='block')padHold(c,padI);else liveSheet(c)}},470);return}
     if(!ctx)return;
     if(c.type==='btn'){e.classList.add('down');liveDown(c);return}
     if(c.type==='xy'){mode='pad';start=[rngGet(c,c.tx),rngGet(c,c.ty)];if(/^echo/.test(c.tx+c.ty))echoIn.gain.setTargetAtTime(.8,ctx.currentTime,.01);pad(ev);return}
     start=rngGet(c,c.target);kv=start;if(c.type==='knob'){mode='knob';return}mode='slide';slide(ev)});
   e.addEventListener('pointermove',ev=>{if(mode==='slide')return slide(ev);if(mode==='pad')return pad(ev);if(mode==='knob')return knob(ev);if(!mode)return;
     const dx=(ev.clientX-sx)/area.clientWidth*100,dy=(ev.clientY-sy)/area.clientHeight*100;if(Math.abs(dx)+Math.abs(dy)>1.2){moved=true;clearTimeout(lpT)}if(!moved)return;
-    const snap=v=>Math.round(v*2)/2;
-    if(mode==='move'){c.x=Math.max(0,Math.min(100-c.w,snap(ox+dx)));c.y=Math.max(0,Math.min(100-c.h,snap(oy+dy)))}else{c.w=Math.max(2,Math.min(100-c.x,snap(ow+dx)));c.h=Math.max(2,Math.min(100-c.y,snap(oh+dy)))}
+    const G=liveSnap(c,mode,ox+dx,oy+dy,ow+dx,oh+dy,area);
+    if(mode==='move'){c.x=G.x;c.y=G.y}else{c.w=G.w;c.h=G.h}
+    liveGuides(area,G.gx,G.gy);
     Object.assign(e.style,{left:c.x+'%',top:c.y+'%',width:c.w+'%',height:c.h+'%'})});
   const up=()=>{clearTimeout(lpT);if(liveEdit){if(mode==='move'&&!moved)e._tap=1;else if(mode){drawLive();save()}mode=null;return}
     if(c.type==='btn'){e.classList.remove('down');if(ctx)liveUp(c)}
@@ -618,7 +620,7 @@ function wireLive(e,c){
     else if(mode==='slide'||mode==='knob'){const r=sliderRange(c.target),sp=c.spring===null?r&&r.spring!==undefined:c.spring;if(sp&&r){if(c.spring===null&&r.spring!==undefined)r.set(r.spring);else rngSet(c,c.target,start);e._show()}}
     mode=null};
   e.addEventListener('pointerup',up);e.addEventListener('pointercancel',up);
-  e.addEventListener('click',()=>{if(e._tap){e._tap=0;if(c.type==='block'&&padI>=0)padEdit(c,padI);else liveSheet(c)}});
+  e.addEventListener('click',()=>{if(e._tap){e._tap=0;if(c.type==='block'&&padI>=0){if(padSwap)padSwapTo(c,padI);else padEdit(c,padI)}else liveSheet(c)}});
 }
 const sizeRows=c=>[['w','Breite'],['h','Höhe'],['x','Links'],['y','Oben']].map(([k,l])=>`<div class="stp"><span>${l}</span><button class="act alt" data-z="${k}" data-d="-2" aria-label="${l} kleiner">−</button><b id="z${k}">${Math.round(c[k])} %</b><button class="act alt" data-z="${k}" data-d="2" aria-label="${l} größer">+</button></div>`).join('');
 function wireSize(c){$$('#sheet [data-z]').forEach(b=>{let h;const k=b.dataset.z,d=+b.dataset.d,step=()=>{const A=liveA(),sc=100/(k==='w'||k==='x'?A.w:A.h),mx=k==='w'?100-c.x:k==='h'?100-c.y:k==='x'?100-c.w:100-c.h,mn=k==='w'||k==='h'?2:0;c[k]=Math.max(mn,Math.min(mx,c[k]+d*sc));$('#z'+k).textContent=Math.round(c[k])+' %';drawLive();save()};
@@ -628,6 +630,19 @@ function savePreset(c){openSheet(`<h2>Als Vorlage speichern</h2><p>Die Vorlage s
 function presetSheet(){openSheet(`<h2>Deine Vorlagen</h2>${LIVEP.length?'<p>Tippe eine Vorlage an, um sie auf die Fläche zu legen.</p>':'<p>Noch keine Vorlagen. Öffne ein Element und tippe auf „Als Vorlage speichern“.</p>'}<div class="pkGal">${LIVEP.map((p,i)=>`<div class="pkRow" style="grid-template-columns:minmax(0,1fr) 44px"><button class="lbN" data-p="${i}">${esc(p.pname)}</button><button class="lbP" data-x="${i}" aria-label="${esc(p.pname)} löschen">✕</button></div>`).join('')}</div><div class="row"><button class="act full" id="sC">Fertig</button></div>`);$('#sC').onclick=closeSheet;
   $$('#sheet [data-p]').forEach(b=>b.onclick=()=>{const{pname,...p}=LIVEP[+b.dataset.p];S.live.push(fitNew({...p,id:Date.now()+Math.random()}));drawLive();save();closeSheet()});
   $$('#sheet [data-x]').forEach(b=>b.onclick=()=>{LIVEP.splice(+b.dataset.x,1);saveLP();presetSheet()})}
+function liveSnap(c,mode,x,y,w,h,area){
+  const tx=8/area.clientWidth*100,ty=8/area.clientHeight*100,gapX=6/area.clientWidth*100,gapY=6/area.clientHeight*100,O=S.live.filter(o=>o!==c),xs=[0,100],ys=[0,100],ws=[],hs=[];
+  O.forEach(o=>{xs.push(o.x,o.x+o.w,o.x+o.w/2,o.x-gapX,o.x+o.w+gapX);ys.push(o.y,o.y+o.h,o.y+o.h/2,o.y-gapY,o.y+o.h+gapY);ws.push(o.w);hs.push(o.h)});
+  const best=(vals,list,t)=>{let d=null,g=null;vals.forEach(v=>list.forEach(l=>{const m=l-v;if(Math.abs(m)<t&&(d===null||Math.abs(m)<Math.abs(d))){d=m;g=l}}));return{d:d||0,g}};
+  const R={gx:null,gy:null};
+  if(mode==='move'){w=c.w;h=c.h;const a=best([x,x+w,x+w/2],xs,tx),b=best([y,y+h,y+h/2],ys,ty);R.x=Math.max(0,Math.min(100-w,x+a.d));R.y=Math.max(0,Math.min(100-h,y+b.d));R.gx=a.g;R.gy=b.g}
+  else{const a=best([c.x+w],xs,tx),b=best([c.y+h],ys,ty);let W=w+a.d,H=h+b.d;R.gx=a.g;R.gy=b.g;ws.forEach(v=>{if(Math.abs(v-w)<tx){W=v;R.gx=c.x+v}});hs.forEach(v=>{if(Math.abs(v-h)<ty){H=v;R.gy=c.y+v}});R.w=Math.max(2,Math.min(100-c.x,W));R.h=Math.max(2,Math.min(100-c.y,H))}
+  return R}
+function liveGuides(area,gx,gy){[['lgX',gx,'left'],['lgY',gy,'top']].forEach(([id,v,k])=>{let e=document.getElementById(id);if(v===null){if(e)e.remove();return}if(!e){e=el('i','lg '+id);e.id=id;area.append(e)}e.style[k]=v+'%'})}
+let padSwap=null;
+function padHold(c,i){const t=tr(c.ids[i]);openSheet(`<h2>${t?esc(t.name):'Leeres Pad'}</h2><div class="row"><button class="act" id="phS">Tauschen</button><button class="act alt" id="phE">Sound-Einstellungen</button><button class="act alt full" id="phB">Größe des Blocks</button><button class="act alt full" id="sC">Abbrechen</button></div>`);
+  $('#phS').onclick=()=>{padSwap={c,i};closeSheet();toast('Tippe das Pad an, mit dem getauscht wird.');drawPads()};$('#phE').onclick=()=>padEdit(c,i);$('#phB').onclick=()=>liveSheet(c);$('#sC').onclick=closeSheet}
+function padSwapTo(c,i){const s=padSwap;padSwap=null;const a=s.c.acts||(s.c.acts=[]),b=c.acts||(c.acts=[]);[s.c.ids[s.i],c.ids[i]]=[c.ids[i],s.c.ids[s.i]];[a[s.i],b[i]]=[b[i],a[s.i]];drawPads();save();toast('Getauscht')}
 let padCtx=null;const PADACT=[['play','Sound anschlagen'],['toggle','Antippen: stumm an/aus'],['holdm','Halten: stumm'],['holdo','Halten: hörbar']];
 function padEdit(c,i){const t=tr(c.ids[i]);if(!t)return padAssign(c,i);sel=t.id;padCtx={c,i};channelSheet()}
 function padAssign(c,i){openSheet(`<h2>Pad belegen</h2><p>Wähle einen Kanal aus dem Rack oder lade einen neuen Sound.</p><div class="row"><button class="act full" id="paN">Neuen Sound laden</button></div><div class="pkGal">${S.tracks.map(t=>`<button class="lbN" data-t="${t.id}">${esc(t.name)}</button>`).join('')}</div><div class="row"><button class="act alt" id="paX">Pad leeren</button><button class="act alt" id="sC">Abbrechen</button></div>`);
@@ -964,7 +979,7 @@ function drawPads(){$$('.padGrid').forEach(g=>{const c=g._c;c.cols=c.cols||4;c.r
   if(g.children.length!==n){g.innerHTML='';for(let i=0;i<n;i++){const e=el('button','pad');e.addEventListener('pointerdown',ev=>{if(liveEdit)return;ev.preventDefault();padDown(c,i,e)});e.addEventListener('contextmenu',ev=>ev.preventDefault());g.append(e)}}
   const st=tr(sel);[...g.children].forEach((e,i)=>{const t=tr(c.ids[i]);e.style.outline='';
     if(mode==='note'){e.className='pad note';e.dataset.id='';e.innerHTML=`<b>${NOTE_NAMES[i%8]}</b><i>${st?esc(st.name):''}</i>`;if(SCALE[i%8]+12*Math.floor(i/8)===note)e.style.outline='2px solid var(--ink)';return}
-    if(!t){e.className='pad empty';e.dataset.id='';e.innerHTML=liveEdit?'<b>+</b>':'';return}
+    if(padSwap&&padSwap.c===c&&padSwap.i===i)e.style.outline='2px solid var(--lit)';if(!t){e.className='pad empty';e.dataset.id='';e.innerHTML=liveEdit?'<b>+</b>':'';return}
     e.dataset.id=t.id;e.className='pad'+(t.id===sel?' sel':'')+(t.mute?' muted':'');e.style.setProperty('--c',t.color);const ac=(c.acts&&c.acts[i])||'play';e.innerHTML=`<b>${esc(t.name)}</b><i>${t.mute?'stumm':ac==='toggle'?'Tippen':ac==='holdm'||ac==='holdo'?'Halten':t.sample?esc(t.sample):''}</i>`})})}
 function flash(e){e.style.setProperty('--glow',.9);clearTimeout(e._t);e._t=setTimeout(()=>e.style.setProperty('--glow',0),90)}
 async function padDown(c,i,e){
@@ -1009,7 +1024,9 @@ function fillSheet(){
 /* ---------- Channel Rack ---------- */
 let rackPh=null,rackCells=[],rackSel=null,rackDrag=false,rackSkip=false,rackLP=0;
 function rackMark(){$$('.rRow').forEach(r=>r.classList.toggle('picked',!!rackSel&&rackSel.has(+r.dataset.id)));const b=$('#rackSel');b.style.display=rackSel?'':'none';if(rackSel)$('#rsN').textContent=rackSel.size+' gewählt'}
-function rackEnd(){rackSel=null;rackDrag=false;rackMark()}
+function rackSwap(a,b){const i=S.tracks.findIndex(t=>t.id===a),j=S.tracks.findIndex(t=>t.id===b);if(i<0||j<0)return;[S.tracks[i],S.tracks[j]]=[S.tracks[j],S.tracks[i]];drawRack();save();toast('Getauscht')}
+let rackSwapFrom=null;
+function rackEnd(){rackSwapFrom=null;rackSel=null;rackDrag=false;rackMark()}
 function rackPickAt(x,y){const r=document.elementFromPoint(x,y),w=r&&r.closest&&r.closest('.rRow');if(w&&rackSel){rackSel.add(+w.dataset.id);rackMark()}}
 function delTracks(ids){const keep=S.tracks.filter(t=>!ids.includes(t.id));if(!keep.length){toast('Ein Kanal muss bleiben.');return false}S.tracks=keep;ids.forEach(id=>{S.patterns.forEach(p=>delete p.n[id]);idbDel('s'+id);delete buffers[id]});S.live.forEach(c=>{if(c.ids)c.ids=c.ids.map(i=>ids.includes(i)?null:i)});if(!tr(sel))sel=S.tracks[0].id;drawAll();save();return true}
 function drawGroups(){const b=$('#groups');b.innerHTML='';[[null,'Alle'],...S.groups.map(g=>[g,g])].forEach(([g,l])=>{const e=el('button','chip'+(g===groupF?' on':''),l);e.onclick=()=>{groupF=g;drawRack();drawPads();drawGroups()};b.append(e)});
@@ -1021,7 +1038,7 @@ function drawRack(){
     r.dataset.id=t.id;r.style.setProperty('--c',t.color);m.setAttribute('aria-label',t.name+' stumm schalten');o.setAttribute('aria-label',t.name+' bearbeiten');
     m.onclick=()=>{t.mute=!t.mute;drawRack();drawPads();save()};
     n.addEventListener('pointerdown',ev=>{const x=ev.clientX,y=ev.clientY;rackSkip=false;clearTimeout(rackLP);rackLP=setTimeout(()=>{rackSel=rackSel||new Set();rackSel.add(t.id);rackDrag=true;rackSkip=true;rackMark();try{navigator.vibrate&&navigator.vibrate(18)}catch(e){}},450);n._xy=[x,y]});
-    n.onclick=async()=>{if(rackSkip){rackSkip=false;return}if(rackSel){rackSel.has(t.id)?rackSel.delete(t.id):rackSel.add(t.id);rackMark();return}await resume();sel=t.id;trigger(t,ctx.currentTime,0);drawRack();drawPads();drawSteps()};
+    n.onclick=async()=>{if(rackSkip){rackSkip=false;return}if(rackSwapFrom!=null){const a=rackSwapFrom;rackSwapFrom=null;if(a!==t.id)rackSwap(a,t.id);rackEnd();return}if(rackSel){rackSel.has(t.id)?rackSel.delete(t.id):rackSel.add(t.id);rackMark();return}await resume();sel=t.id;trigger(t,ctx.currentTime,0);drawRack();drawPads();drawSteps()};
     o.onclick=()=>{sel=t.id;channelSheet()};
     h.append(m,n,o);
     for(let s=0;s<L;s++){const x=stepAt(P,t.id,s),e=el('button','rc'+(s%4===0?' beat':'')+(s%BAR===0&&s?' barS':'')+(x?' on':'')+(s===phPos?' ph':''),x&&x.n?noteLabel(x.n):'');e.dataset.s=s;e.setAttribute('aria-label',t.name+' Schritt '+(s+1));e.onclick=()=>{sel=t.id;toggleStep(t.id,s)};c.append(e);(rackCells[s]=rackCells[s]||[]).push(e)}
@@ -1066,7 +1083,7 @@ function channelSheet(){
 function addChannelSheet(){
   if(S.tracks.length>=MAXCH){toast('Mehr als '+MAXCH+' Kanäle gehen nicht.');return}
   openSheet(`<h2>Neuer Kanal</h2><p>Wähle einen Startsound. Dein eigenes Sample lädst du danach über ⋯.</p><div class="row3">${DEF.map(d=>`<button class="act alt" data-s="${d[0]}">${d[0]}</button>`).join('')}</div><div class="row"><button class="act alt full" id="sC">Abbrechen</button></div>`);
-  $$('#sheet [data-s]').forEach(b=>b.onclick=()=>{const d=DEF.find(x=>x[0]===b.dataset.s),t=mkTrack(S.nextId++,d);t.group=groupF||d[3];S.tracks.push(t);wireTrack(t);sel=t.id;drawAll();save();closeSheet()});
+  $$('#sheet [data-s]').forEach(b=>b.onclick=()=>{const d=DEF.find(x=>x[0]===b.dataset.s),t=(fixIds(),mkTrack(S.nextId++,d));t.group=groupF||d[3];S.tracks.push(t);wireTrack(t);sel=t.id;drawAll();save();closeSheet()});
   $('#sC').onclick=closeSheet;
 }
 function groupSheet(){
@@ -1313,7 +1330,10 @@ function menuSheet(){
   $('#mN').onclick=()=>{openSheet(`<h2>Neu anfangen?</h2><p>Alle Pattern und geladenen Samples werden aus der App gelöscht. Sichere dein Projekt vorher als Datei, wenn du es behalten willst.</p><div class="row"><button class="act" id="nY">Alles löschen</button><button class="act alt" id="nN">Abbrechen</button></div>`);
     $('#nN').onclick=menuSheet;$('#nY').onclick=async()=>{for(const t of S.tracks){await idbDel('s'+t.id);delete buffers[t.id]}S=defaultState();sel=0;groupF=null;applyState();save();closeSheet();toast('Neues Projekt gestartet')}};
 }
-function applyState(){if(ctx){S.slots.forEach((_,i)=>{if(!slotN[i])makeSlot(i)});S.slots.forEach((_,i)=>rebuildSlot(i));S.tracks.forEach(wireTrack)}$('#bpm').textContent=S.bpm;queued=null;if(!tr(sel))sel=S.tracks[0].id;drawAll()}
+function fixIds(){const seen=new Set();let mx=-1;S.tracks.forEach(t=>{if(Number.isFinite(t.id))mx=Math.max(mx,t.id)});
+  S.tracks.forEach(t=>{if(Number.isFinite(t.id)&&!seen.has(t.id)){seen.add(t.id);return}const o=t.id,n=++mx;S.patterns.forEach(p=>{if(p.n[o])p.n[n]=JSON.parse(JSON.stringify(p.n[o]))});t.id=n;seen.add(n);
+    if(buffers[o])buffers[n]=buffers[o];idbGet('s'+o).then(f=>{if(f)idbSet('s'+n,f)});wireTrack(t)});S.nextId=mx+1}
+function applyState(){fixIds();if(ctx){S.slots.forEach((_,i)=>{if(!slotN[i])makeSlot(i)});S.slots.forEach((_,i)=>rebuildSlot(i));S.tracks.forEach(wireTrack)}$('#bpm').textContent=S.bpm;queued=null;if(!tr(sel))sel=S.tracks[0].id;drawAll()}
 function refreshGrid(){drawSteps();if(view==='rv'){drawRack()}if(view==='ov')drawPiano()}
 function drawAll(){ensureFxIds();drawLive();drawPatBar();drawSteps();drawPads();drawGroups();drawRack();prSelect();drawPiano();drawSong();drawMixer()}
 function drawPlayhead(){
@@ -1370,6 +1390,7 @@ document.addEventListener('pointermove',e=>{if(rackDrag)rackPickAt(e.clientX,e.c
 $('#rackScroll').addEventListener('touchmove',e=>{if(rackDrag)e.preventDefault()},{passive:false});
 $('#rsX').onclick=()=>{const P=pat();rackSel.forEach(id=>delete P.n[id]);refreshGrid();save();toast('Kanäle im Pattern geleert');rackEnd()};
 $('#rsA').onclick=()=>{visTracks().forEach(t=>rackSel.add(t.id));rackMark()};$('#rsQ').onclick=rackEnd;
+$('#rsS').onclick=()=>{const a=[...rackSel];if(a.length===2){rackSwap(a[0],a[1]);rackEnd();return}if(a.length===1){rackSwapFrom=a[0];toast('Tippe den Kanal an, mit dem getauscht wird.');return}toast('Wähle einen oder zwei Kanäle.')};
 $('#rsD').onclick=()=>{const ids=[...rackSel];openSheet(`<h2>${ids.length} ${ids.length>1?'Kanäle':'Kanal'} löschen?</h2><p>Die Kanäle verschwinden mit ihren Noten aus allen Pattern.</p><div class="row"><button class="act" id="dY">Löschen</button><button class="act alt" id="sC">Abbrechen</button></div>`);$('#dY').onclick=()=>{if(delTracks(ids)){rackEnd();toast('Gelöscht')}closeSheet()};$('#sC').onclick=closeSheet};
 $('#prFill').onclick=fillSheet;
 $('#rackWave').onclick=async()=>{await resume();const t=tr(sel);if(t)trigger(t,ctx.currentTime,0)};

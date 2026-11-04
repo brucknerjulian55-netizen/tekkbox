@@ -208,7 +208,7 @@ function drawPads(){$$('.padGrid').forEach(g=>{const c=g._c;c.cols=c.cols||4;c.r
   if(g.children.length!==n){g.innerHTML='';for(let i=0;i<n;i++){const e=el('button','pad');e.addEventListener('pointerdown',ev=>{if(liveEdit)return;ev.preventDefault();padDown(c,i,e)});e.addEventListener('contextmenu',ev=>ev.preventDefault());g.append(e)}}
   const st=tr(sel);[...g.children].forEach((e,i)=>{const t=tr(c.ids[i]);e.style.outline='';
     if(mode==='note'){e.className='pad note';e.dataset.id='';e.innerHTML=`<b>${NOTE_NAMES[i%8]}</b><i>${st?esc(st.name):''}</i>`;if(SCALE[i%8]+12*Math.floor(i/8)===note)e.style.outline='2px solid var(--ink)';return}
-    if(!t){e.className='pad empty';e.dataset.id='';e.innerHTML=liveEdit?'<b>+</b>':'';return}
+    if(padSwap&&padSwap.c===c&&padSwap.i===i)e.style.outline='2px solid var(--lit)';if(!t){e.className='pad empty';e.dataset.id='';e.innerHTML=liveEdit?'<b>+</b>':'';return}
     e.dataset.id=t.id;e.className='pad'+(t.id===sel?' sel':'')+(t.mute?' muted':'');e.style.setProperty('--c',t.color);const ac=(c.acts&&c.acts[i])||'play';e.innerHTML=`<b>${esc(t.name)}</b><i>${t.mute?'stumm':ac==='toggle'?'Tippen':ac==='holdm'||ac==='holdo'?'Halten':t.sample?esc(t.sample):''}</i>`})})}
 function flash(e){e.style.setProperty('--glow',.9);clearTimeout(e._t);e._t=setTimeout(()=>e.style.setProperty('--glow',0),90)}
 async function padDown(c,i,e){
@@ -253,7 +253,9 @@ function fillSheet(){
 /* ---------- Channel Rack ---------- */
 let rackPh=null,rackCells=[],rackSel=null,rackDrag=false,rackSkip=false,rackLP=0;
 function rackMark(){$$('.rRow').forEach(r=>r.classList.toggle('picked',!!rackSel&&rackSel.has(+r.dataset.id)));const b=$('#rackSel');b.style.display=rackSel?'':'none';if(rackSel)$('#rsN').textContent=rackSel.size+' gewählt'}
-function rackEnd(){rackSel=null;rackDrag=false;rackMark()}
+function rackSwap(a,b){const i=S.tracks.findIndex(t=>t.id===a),j=S.tracks.findIndex(t=>t.id===b);if(i<0||j<0)return;[S.tracks[i],S.tracks[j]]=[S.tracks[j],S.tracks[i]];drawRack();save();toast('Getauscht')}
+let rackSwapFrom=null;
+function rackEnd(){rackSwapFrom=null;rackSel=null;rackDrag=false;rackMark()}
 function rackPickAt(x,y){const r=document.elementFromPoint(x,y),w=r&&r.closest&&r.closest('.rRow');if(w&&rackSel){rackSel.add(+w.dataset.id);rackMark()}}
 function delTracks(ids){const keep=S.tracks.filter(t=>!ids.includes(t.id));if(!keep.length){toast('Ein Kanal muss bleiben.');return false}S.tracks=keep;ids.forEach(id=>{S.patterns.forEach(p=>delete p.n[id]);idbDel('s'+id);delete buffers[id]});S.live.forEach(c=>{if(c.ids)c.ids=c.ids.map(i=>ids.includes(i)?null:i)});if(!tr(sel))sel=S.tracks[0].id;drawAll();save();return true}
 function drawGroups(){const b=$('#groups');b.innerHTML='';[[null,'Alle'],...S.groups.map(g=>[g,g])].forEach(([g,l])=>{const e=el('button','chip'+(g===groupF?' on':''),l);e.onclick=()=>{groupF=g;drawRack();drawPads();drawGroups()};b.append(e)});
@@ -265,7 +267,7 @@ function drawRack(){
     r.dataset.id=t.id;r.style.setProperty('--c',t.color);m.setAttribute('aria-label',t.name+' stumm schalten');o.setAttribute('aria-label',t.name+' bearbeiten');
     m.onclick=()=>{t.mute=!t.mute;drawRack();drawPads();save()};
     n.addEventListener('pointerdown',ev=>{const x=ev.clientX,y=ev.clientY;rackSkip=false;clearTimeout(rackLP);rackLP=setTimeout(()=>{rackSel=rackSel||new Set();rackSel.add(t.id);rackDrag=true;rackSkip=true;rackMark();try{navigator.vibrate&&navigator.vibrate(18)}catch(e){}},450);n._xy=[x,y]});
-    n.onclick=async()=>{if(rackSkip){rackSkip=false;return}if(rackSel){rackSel.has(t.id)?rackSel.delete(t.id):rackSel.add(t.id);rackMark();return}await resume();sel=t.id;trigger(t,ctx.currentTime,0);drawRack();drawPads();drawSteps()};
+    n.onclick=async()=>{if(rackSkip){rackSkip=false;return}if(rackSwapFrom!=null){const a=rackSwapFrom;rackSwapFrom=null;if(a!==t.id)rackSwap(a,t.id);rackEnd();return}if(rackSel){rackSel.has(t.id)?rackSel.delete(t.id):rackSel.add(t.id);rackMark();return}await resume();sel=t.id;trigger(t,ctx.currentTime,0);drawRack();drawPads();drawSteps()};
     o.onclick=()=>{sel=t.id;channelSheet()};
     h.append(m,n,o);
     for(let s=0;s<L;s++){const x=stepAt(P,t.id,s),e=el('button','rc'+(s%4===0?' beat':'')+(s%BAR===0&&s?' barS':'')+(x?' on':'')+(s===phPos?' ph':''),x&&x.n?noteLabel(x.n):'');e.dataset.s=s;e.setAttribute('aria-label',t.name+' Schritt '+(s+1));e.onclick=()=>{sel=t.id;toggleStep(t.id,s)};c.append(e);(rackCells[s]=rackCells[s]||[]).push(e)}
@@ -310,7 +312,7 @@ function channelSheet(){
 function addChannelSheet(){
   if(S.tracks.length>=MAXCH){toast('Mehr als '+MAXCH+' Kanäle gehen nicht.');return}
   openSheet(`<h2>Neuer Kanal</h2><p>Wähle einen Startsound. Dein eigenes Sample lädst du danach über ⋯.</p><div class="row3">${DEF.map(d=>`<button class="act alt" data-s="${d[0]}">${d[0]}</button>`).join('')}</div><div class="row"><button class="act alt full" id="sC">Abbrechen</button></div>`);
-  $$('#sheet [data-s]').forEach(b=>b.onclick=()=>{const d=DEF.find(x=>x[0]===b.dataset.s),t=mkTrack(S.nextId++,d);t.group=groupF||d[3];S.tracks.push(t);wireTrack(t);sel=t.id;drawAll();save();closeSheet()});
+  $$('#sheet [data-s]').forEach(b=>b.onclick=()=>{const d=DEF.find(x=>x[0]===b.dataset.s),t=(fixIds(),mkTrack(S.nextId++,d));t.group=groupF||d[3];S.tracks.push(t);wireTrack(t);sel=t.id;drawAll();save();closeSheet()});
   $('#sC').onclick=closeSheet;
 }
 function groupSheet(){
@@ -557,7 +559,10 @@ function menuSheet(){
   $('#mN').onclick=()=>{openSheet(`<h2>Neu anfangen?</h2><p>Alle Pattern und geladenen Samples werden aus der App gelöscht. Sichere dein Projekt vorher als Datei, wenn du es behalten willst.</p><div class="row"><button class="act" id="nY">Alles löschen</button><button class="act alt" id="nN">Abbrechen</button></div>`);
     $('#nN').onclick=menuSheet;$('#nY').onclick=async()=>{for(const t of S.tracks){await idbDel('s'+t.id);delete buffers[t.id]}S=defaultState();sel=0;groupF=null;applyState();save();closeSheet();toast('Neues Projekt gestartet')}};
 }
-function applyState(){if(ctx){S.slots.forEach((_,i)=>{if(!slotN[i])makeSlot(i)});S.slots.forEach((_,i)=>rebuildSlot(i));S.tracks.forEach(wireTrack)}$('#bpm').textContent=S.bpm;queued=null;if(!tr(sel))sel=S.tracks[0].id;drawAll()}
+function fixIds(){const seen=new Set();let mx=-1;S.tracks.forEach(t=>{if(Number.isFinite(t.id))mx=Math.max(mx,t.id)});
+  S.tracks.forEach(t=>{if(Number.isFinite(t.id)&&!seen.has(t.id)){seen.add(t.id);return}const o=t.id,n=++mx;S.patterns.forEach(p=>{if(p.n[o])p.n[n]=JSON.parse(JSON.stringify(p.n[o]))});t.id=n;seen.add(n);
+    if(buffers[o])buffers[n]=buffers[o];idbGet('s'+o).then(f=>{if(f)idbSet('s'+n,f)});wireTrack(t)});S.nextId=mx+1}
+function applyState(){fixIds();if(ctx){S.slots.forEach((_,i)=>{if(!slotN[i])makeSlot(i)});S.slots.forEach((_,i)=>rebuildSlot(i));S.tracks.forEach(wireTrack)}$('#bpm').textContent=S.bpm;queued=null;if(!tr(sel))sel=S.tracks[0].id;drawAll()}
 function refreshGrid(){drawSteps();if(view==='rv'){drawRack()}if(view==='ov')drawPiano()}
 function drawAll(){ensureFxIds();drawLive();drawPatBar();drawSteps();drawPads();drawGroups();drawRack();prSelect();drawPiano();drawSong();drawMixer()}
 function drawPlayhead(){
@@ -614,6 +619,7 @@ document.addEventListener('pointermove',e=>{if(rackDrag)rackPickAt(e.clientX,e.c
 $('#rackScroll').addEventListener('touchmove',e=>{if(rackDrag)e.preventDefault()},{passive:false});
 $('#rsX').onclick=()=>{const P=pat();rackSel.forEach(id=>delete P.n[id]);refreshGrid();save();toast('Kanäle im Pattern geleert');rackEnd()};
 $('#rsA').onclick=()=>{visTracks().forEach(t=>rackSel.add(t.id));rackMark()};$('#rsQ').onclick=rackEnd;
+$('#rsS').onclick=()=>{const a=[...rackSel];if(a.length===2){rackSwap(a[0],a[1]);rackEnd();return}if(a.length===1){rackSwapFrom=a[0];toast('Tippe den Kanal an, mit dem getauscht wird.');return}toast('Wähle einen oder zwei Kanäle.')};
 $('#rsD').onclick=()=>{const ids=[...rackSel];openSheet(`<h2>${ids.length} ${ids.length>1?'Kanäle':'Kanal'} löschen?</h2><p>Die Kanäle verschwinden mit ihren Noten aus allen Pattern.</p><div class="row"><button class="act" id="dY">Löschen</button><button class="act alt" id="sC">Abbrechen</button></div>`);$('#dY').onclick=()=>{if(delTracks(ids)){rackEnd();toast('Gelöscht')}closeSheet()};$('#sC').onclick=closeSheet};
 $('#prFill').onclick=fillSheet;
 $('#rackWave').onclick=async()=>{await resume();const t=tr(sel);if(t)trigger(t,ctx.currentTime,0)};
