@@ -340,6 +340,12 @@ function drawPiano(){
 function prFocus(){const b=$('#prScroll');if(!b.clientWidth)return;
   if(!PR.fit){PR.fit=true;PR.w=Math.max(16,Math.floor((b.clientWidth-44)/BAR));drawPiano()}
   const a=pat().n[sel]||[],m=a.length?a.reduce((x,y)=>x+y.n,0)/a.length:0,f=a.length?Math.min(...a.map(x=>x.s)):0;b.scrollTop=(PR.top-m+.5)*PR.h-b.clientHeight/2;b.scrollLeft=Math.max(0,f*PR.w-20)}
+function prSetBrush(l){PR.brush=l;const b=$('#prBrush');b.style.display=l?'':'none';b.textContent=`Stempel ${l} ✕`;if(l)toast(`Länge ${l} aufgenommen. Tippe auf freie Felder.`)}
+function noteSheet(x){const P=pat(),L=patLen(P),draw=()=>{openSheet(`<h2>Note ${noteLabel(x.n)}</h2><p>Feld ${x.s+1}, Länge in Feldern.</p><div class="stp"><span>Länge</span><button class="act alt" id="nL" aria-label="Kürzer">−</button><b>${x.l}</b><button class="act alt" id="nM" aria-label="Länger">+</button></div>
+  <div class="row3">${[1,2,3,4,8,16].map(v=>`<button class="act ${x.l===v?'sel':'alt'}" data-l="${v}">${v}</button>`).join('')}</div>
+  <div class="row"><button class="act alt" id="nD">Note löschen</button><button class="act" id="sC">Fertig</button></div>`);
+  const set=v=>{x.l=Math.max(1,Math.min(L-x.s,v));x.pr=1;drawPiano();refreshGrid();save();draw()};$('#nL').onclick=()=>set(x.l-1);$('#nM').onclick=()=>set(x.l+1);$$('#sheet [data-l]').forEach(b=>b.onclick=()=>set(+b.dataset.l));
+  $('#nD').onclick=()=>{P.n[sel]=P.n[sel].filter(y=>y!==x);refreshGrid();save();closeSheet()};$('#sC').onclick=closeSheet};draw()}
 function prSelect(){const b=$('#prCh');b.innerHTML=S.tracks.map(t=>`<option value="${t.id}"${t.id===sel?' selected':''}>${esc(t.name)}</option>`).join('')}
 function prHit(s,n){return(pat().n[sel]||[]).find(x=>x.n===n&&s>=x.s&&s<x.s+x.l)}
 function prPos(e){const r=$('#prCanvas').getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
@@ -349,20 +355,22 @@ function wirePiano(){
   c.addEventListener('pointerdown',e=>{
     if(PR.drag)return;e.preventDefault();resume();c.setPointerCapture(e.pointerId);cancelAnimationFrame(mom);
     const{x,y}=prPos(e),s=Math.floor(x/PR.w),n=prN(y),hit=prHit(s,n),b=$('#prScroll');
-    if(hit){const edge=(hit.s+hit.l)*PR.w-x<Math.min(16,hit.l*PR.w*.45);PR.drag={k:edge?'size':'move',x:hit,ds:s-hit.s,moved:false,was:true}}
+    if(hit){const edge=(hit.s+hit.l)*PR.w-x<Math.min(16,hit.l*PR.w*.45),d=PR.drag={k:edge?'size':'move',x:hit,ds:s-hit.s,moved:false,was:true};d.lp=setTimeout(()=>{if(!d.moved){d.long=true;prSetBrush(hit.l);try{navigator.vibrate&&navigator.vibrate(18)}catch(e){}drawPiano()}},450)}
     else PR.drag={k:'tap',s,n,cx:e.clientX,cy:e.clientY,sl:b.scrollLeft,st:b.scrollTop,vx:0,vy:0,lx:e.clientX,ly:e.clientY,lt:performance.now(),moved:false};
   });
   c.addEventListener('pointermove',e=>{const d=PR.drag;if(!d)return;
     if(d.k==='tap'){const dx=e.clientX-d.cx,dy=e.clientY-d.cy,b=$('#prScroll');if(Math.hypot(dx,dy)>9)d.moved=true;if(!d.moved)return;b.scrollLeft=d.sl-dx;b.scrollTop=d.st-dy;const t=performance.now(),dt=Math.max(1,t-d.lt);d.vx=(d.lx-e.clientX)/dt;d.vy=(d.ly-e.clientY)/dt;d.lx=e.clientX;d.ly=e.clientY;d.lt=t;return}
     const{x,y}=prPos(e),L=patLen(pat()),v=d.x;
-    if(d.k==='size'){const l=Math.max(PR.snap,Math.ceil((x/PR.w-v.s)/PR.snap)*PR.snap);if(l!==v.l&&v.s+l<=L){v.l=l;v.pr=1;d.moved=true;drawPiano()}}
-    else{const ns=Math.max(0,Math.min(L-v.l,Math.floor((Math.floor(x/PR.w)-d.ds)/PR.snap)*PR.snap)),nn=Math.max(PR.bot,Math.min(PR.top,prN(y)));if(ns!==v.s||nn!==v.n){const pc=nn!==v.n;v.s=ns;v.n=nn;v.pr=1;d.moved=true;if(pc){const t=tr(sel);if(t)trigger(t,ctx.currentTime,nn)}drawPiano()}}});
-  const up=()=>{const d=PR.drag;PR.drag=null;if(!d)return;const P=pat();
+    if(d.k==='size'){const l=Math.max(PR.snap,Math.ceil((x/PR.w-v.s)/PR.snap)*PR.snap);if(l!==v.l&&v.s+l<=L){v.l=l;v.pr=1;d.moved=true;clearTimeout(d.lp);drawPiano()}}
+    else{const ns=Math.max(0,Math.min(L-v.l,Math.floor((Math.floor(x/PR.w)-d.ds)/PR.snap)*PR.snap)),nn=Math.max(PR.bot,Math.min(PR.top,prN(y)));if(ns!==v.s||nn!==v.n){const pc=nn!==v.n;clearTimeout(d.lp);v.s=ns;v.n=nn;v.pr=1;d.moved=true;if(pc){const t=tr(sel);if(t)trigger(t,ctx.currentTime,nn)}drawPiano()}}});
+  const up=()=>{const d=PR.drag;PR.drag=null;if(!d)return;clearTimeout(d.lp);const P=pat();
     if(d.k==='tap'){
       if(d.moved){let{vx,vy}=d,b=$('#prScroll');const go=()=>{b.scrollLeft+=vx*16;b.scrollTop+=vy*16;vx*=.94;vy*=.94;if(Math.abs(vx)+Math.abs(vy)>.03)mom=requestAnimationFrame(go)};if(performance.now()-d.lt<60)go();return}
-      const st=Math.floor(d.s/PR.snap)*PR.snap,L=patLen(P),nt={s:st,n:d.n,l:Math.min(PR.snap,L-st),pr:1};if(st>=L||d.n>PR.top||d.n<PR.bot)return;(P.n[sel]=P.n[sel]||[]).push(nt);const t=tr(sel);if(t&&ctx)trigger(t,ctx.currentTime,d.n)
-    }else if(d.was&&!d.moved)P.n[sel]=P.n[sel].filter(x=>x!==d.x);
+      const st=Math.floor(d.s/PR.snap)*PR.snap,L=patLen(P),nt={s:st,n:d.n,l:Math.min(PR.brush||PR.snap,L-st),pr:1};if(st>=L||d.n>PR.top||d.n<PR.bot)return;(P.n[sel]=P.n[sel]||[]).push(nt);const t=tr(sel);if(t&&ctx)trigger(t,ctx.currentTime,d.n)
+    }else if(d.was&&!d.moved&&!d.long)PR.tapN=d.x;
     drawPiano();refreshGrid();save()};
+  c.addEventListener('click',()=>{if(PR.tapN){const n=PR.tapN;PR.tapN=null;noteSheet(n)}});
+  $('#prBrush').onclick=()=>{prSetBrush(0);drawPiano()};
   c.addEventListener('pointerup',up);c.addEventListener('pointercancel',()=>{const d=PR.drag;if(d&&d.k==='tap')d.moved=true;up()});
   $('#prCh').onchange=e=>{sel=+e.target.value;drawPiano();drawPads();drawSteps();prFocus()};
   $('#prSnap').onchange=e=>{PR.snap=+e.target.value};

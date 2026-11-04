@@ -100,3 +100,4 @@ canvas.ed{border:1px solid var(--line);border-radius:2px}
 .bgS{aspect-ratio:9/14;background-size:cover;background-position:center;background-color:var(--deep);border:1px solid var(--line);border-radius:2px;font-size:24px;color:var(--dim)}.bgS.on{border:2px solid var(--lit);box-shadow:0 0 12px var(--lit)}
 #bgP{width:min(52vw,200px);aspect-ratio:9/16;margin:0 auto 10px;overflow:hidden;position:relative;border:1px solid var(--line);touch-action:none;cursor:move;background:var(--body)}
 #bgP .im{position:absolute;inset:0;background-size:cover;pointer-events:none}
+#prCh{min-width:76px}
