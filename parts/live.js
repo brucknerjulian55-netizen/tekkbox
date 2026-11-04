@@ -26,11 +26,11 @@ const rngGet=(c,t)=>{const r=sliderRange(t);if(!r)return.5;const u=(r.get()-r.mi
 const rngSet=(c,t,v)=>{const r=sliderRange(t);if(!r)return;v=Math.max(0,Math.min(1,v));let x=r.min+(c.lo/100+(c.hi-c.lo)/100*v)*(r.max-r.min);if(r.step)x=Math.round(x/r.step)*r.step;r.set(x)};
 function liveDown(c){const tg=c.target,a=tg.split(':');
   if(a[0]==='hit'){const t=tr(+a[1]);if(!t)return;
-    if(c.act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}
-    else if(c.act==='holdm'){t.mute=true;choke(t.id,ctx.currentTime);liveMark()}
+    if(c.act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime,true);liveMark();drawPads();drawRack();save()}
+    else if(c.act==='holdm'){t.mute=true;choke(t.id,ctx.currentTime,true);liveMark()}
     else if(c.act==='holdo'){t.mute=false;liveMark()}
     else{if(holdable(t))holdVoice(t,0);else trigger(t,ctx.currentTime,0);record(t.id,0)}}
-  else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}}
+  else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime,true);liveMark();drawPads();drawRack();save()}}
   else if(a[0]==='pat'){if(S.patterns[+a[1]])goPat(+a[1])}
   else if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);if(h){const on=!h.f.on;[b.fid,...(b.links||[])].forEach(id=>{const x=fxBy(id);if(x){x.f.on=on;rebuildSlot(x.i)}});liveMark();save()}}
   else if(a[0]==='roll')roll=+a[1];
@@ -39,7 +39,7 @@ function liveDown(c){const tg=c.target,a=tg.split(':');
   else if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];if(f){f.on=!f.on;rebuildSlot(+a[1]);liveMark();save()}}
 }
 const liveMark=()=>$$('#liveArea .lc').forEach(e=>e._c&&e.classList.toggle('act',!!liveActive(e._c)));
-function liveUp(c){const a=c.target.split(':');if(a[0]==='roll')roll=0;else if(c.target==='echo'&&ctx)echoIn.gain.setTargetAtTime(0,ctx.currentTime,.02);else if(a[0]==='hit'&&ctx){const t=tr(+a[1]);if(!t)return;if(c.act==='holdm'){t.mute=false;liveMark()}else if(c.act==='holdo'){t.mute=true;choke(t.id,ctx.currentTime);liveMark()}else if(c.act==='play'&&c.hold)choke(t.id,ctx.currentTime)}}
+function liveUp(c){const a=c.target.split(':');if(a[0]==='roll')roll=0;else if(c.target==='echo'&&ctx)echoIn.gain.setTargetAtTime(0,ctx.currentTime,.02);else if(a[0]==='hit'&&ctx){const t=tr(+a[1]);if(!t)return;if(c.act==='holdm'){t.mute=false;liveMark()}else if(c.act==='holdo'){t.mute=true;choke(t.id,ctx.currentTime,true);liveMark()}else if(c.act==='play'&&c.hold)choke(t.id,ctx.currentTime)}}
 function liveActive(c){const a=c.target.split(':');if(a[0]==='hit'&&c.act!=='play'){const t=tr(+a[1]);return t&&!t.mute}if(a[0]==='mute'){const t=tr(+a[1]);return t&&t.mute}if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);return h&&h.f.on}if(a[0]==='pat')return S.cur===+a[1];if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];return f&&f.on}return false}
 function liveLabel(c){return c.label||(c.type==='xy'?targetName('val',c.tx)+' / '+targetName('val',c.ty):targetName(kindOf(c),c.target))}
 const BLK={pads:{t:'Pads',w:96,h:48,n:['#mode']},steps:{t:'Schritte',w:96,h:18,n:['#steps']},fx:{t:'Live-FX',w:96,h:24,n:['.faders','.holds']}};

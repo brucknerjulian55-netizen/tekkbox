@@ -114,7 +114,7 @@ function sound(t,time,n=0,gate=0){
   s.onended=()=>{voices[t.id]=(voices[t.id]||[]).filter(v=>v.s!==s)};
 }
 function trigger(t,time,n=0,gate=0){choke(t.id,time);sound(t,time,n,gate)}
-function holdVoice(t,n,pid=lastPid){trigger(t,ctx.currentTime,n,8);const u=e=>{if(e.pointerId!==pid)return;choke(t.id,ctx.currentTime);window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u)}
+function holdVoice(t,n,pid=lastPid){trigger(t,ctx.currentTime,n,8);const u=e=>{if(e.pointerId!==pid)return;choke(t.id,ctx.currentTime,true);window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u)}
 
 /* ---------- Effekte in den Mixer-Slots ---------- */
 const FX={
@@ -232,11 +232,11 @@ async function padDown(c,i,e){
   const pid=lastPid;await resume();flash(e);
   if(mode==='note'){note=SCALE[i%8]+12*Math.floor(i/8);const t=tr(sel);if(t){if(holdable(t))holdVoice(t,note,pid);else trigger(t,ctx.currentTime,note);record(sel,note)}drawPads();return}
   const t=tr(c.ids[i]);if(!t)return;
-  if(mode==='mute'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();save();return}
-  if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
+  if(mode==='mute'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime,true);drawPads();save();return}
+  if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime,true);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
   const act=(c.acts&&c.acts[i])||'play';
-  if(act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();drawRack();save();return}
-  if(act==='holdm'||act==='holdo'){const on=act==='holdm';t.mute=on;if(on)choke(t.id,ctx.currentTime);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=!on;if(!on)choke(t.id,ctx.currentTime);drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
+  if(act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime,true);drawPads();drawRack();save();return}
+  if(act==='holdm'||act==='holdo'){const on=act==='holdm';t.mute=on;if(on)choke(t.id,ctx.currentTime,true);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=!on;if(!on)choke(t.id,ctx.currentTime,true);drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
   const ch=sel!==t.id;sel=t.id;if(holdable(t))holdVoice(t,0,pid);else trigger(t,ctx.currentTime,0);record(t.id,0);if(ch){drawPads();drawSteps()}
 }
 function setMode(m){mode=m;$$('.seg').forEach(b=>b.classList.toggle('on',b.dataset.m===m));drawPads()}

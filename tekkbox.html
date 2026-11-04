@@ -564,11 +564,11 @@ const rngGet=(c,t)=>{const r=sliderRange(t);if(!r)return.5;const u=(r.get()-r.mi
 const rngSet=(c,t,v)=>{const r=sliderRange(t);if(!r)return;v=Math.max(0,Math.min(1,v));let x=r.min+(c.lo/100+(c.hi-c.lo)/100*v)*(r.max-r.min);if(r.step)x=Math.round(x/r.step)*r.step;r.set(x)};
 function liveDown(c){const tg=c.target,a=tg.split(':');
   if(a[0]==='hit'){const t=tr(+a[1]);if(!t)return;
-    if(c.act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}
-    else if(c.act==='holdm'){t.mute=true;choke(t.id,ctx.currentTime);liveMark()}
+    if(c.act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime,true);liveMark();drawPads();drawRack();save()}
+    else if(c.act==='holdm'){t.mute=true;choke(t.id,ctx.currentTime,true);liveMark()}
     else if(c.act==='holdo'){t.mute=false;liveMark()}
     else{if(holdable(t))holdVoice(t,0);else trigger(t,ctx.currentTime,0);record(t.id,0)}}
-  else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}}
+  else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime,true);liveMark();drawPads();drawRack();save()}}
   else if(a[0]==='pat'){if(S.patterns[+a[1]])goPat(+a[1])}
   else if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);if(h){const on=!h.f.on;[b.fid,...(b.links||[])].forEach(id=>{const x=fxBy(id);if(x){x.f.on=on;rebuildSlot(x.i)}});liveMark();save()}}
   else if(a[0]==='roll')roll=+a[1];
@@ -577,7 +577,7 @@ function liveDown(c){const tg=c.target,a=tg.split(':');
   else if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];if(f){f.on=!f.on;rebuildSlot(+a[1]);liveMark();save()}}
 }
 const liveMark=()=>$$('#liveArea .lc').forEach(e=>e._c&&e.classList.toggle('act',!!liveActive(e._c)));
-function liveUp(c){const a=c.target.split(':');if(a[0]==='roll')roll=0;else if(c.target==='echo'&&ctx)echoIn.gain.setTargetAtTime(0,ctx.currentTime,.02);else if(a[0]==='hit'&&ctx){const t=tr(+a[1]);if(!t)return;if(c.act==='holdm'){t.mute=false;liveMark()}else if(c.act==='holdo'){t.mute=true;choke(t.id,ctx.currentTime);liveMark()}else if(c.act==='play'&&c.hold)choke(t.id,ctx.currentTime)}}
+function liveUp(c){const a=c.target.split(':');if(a[0]==='roll')roll=0;else if(c.target==='echo'&&ctx)echoIn.gain.setTargetAtTime(0,ctx.currentTime,.02);else if(a[0]==='hit'&&ctx){const t=tr(+a[1]);if(!t)return;if(c.act==='holdm'){t.mute=false;liveMark()}else if(c.act==='holdo'){t.mute=true;choke(t.id,ctx.currentTime,true);liveMark()}else if(c.act==='play'&&c.hold)choke(t.id,ctx.currentTime)}}
 function liveActive(c){const a=c.target.split(':');if(a[0]==='hit'&&c.act!=='play'){const t=tr(+a[1]);return t&&!t.mute}if(a[0]==='mute'){const t=tr(+a[1]);return t&&t.mute}if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);return h&&h.f.on}if(a[0]==='pat')return S.cur===+a[1];if(a[0]==='fx'){const f=(S.slots[+a[1]]||{fx:[]}).fx[+a[2]];return f&&f.on}return false}
 function liveLabel(c){return c.label||(c.type==='xy'?targetName('val',c.tx)+' / '+targetName('val',c.ty):targetName(kindOf(c),c.target))}
 const BLK={pads:{t:'Pads',w:96,h:48,n:['#mode']},steps:{t:'Schritte',w:96,h:18,n:['#steps']},fx:{t:'Live-FX',w:96,h:24,n:['.faders','.holds']}};
@@ -901,7 +901,7 @@ function sound(t,time,n=0,gate=0){
   s.onended=()=>{voices[t.id]=(voices[t.id]||[]).filter(v=>v.s!==s)};
 }
 function trigger(t,time,n=0,gate=0){choke(t.id,time);sound(t,time,n,gate)}
-function holdVoice(t,n,pid=lastPid){trigger(t,ctx.currentTime,n,8);const u=e=>{if(e.pointerId!==pid)return;choke(t.id,ctx.currentTime);window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u)}
+function holdVoice(t,n,pid=lastPid){trigger(t,ctx.currentTime,n,8);const u=e=>{if(e.pointerId!==pid)return;choke(t.id,ctx.currentTime,true);window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u)}
 
 /* ---------- Effekte in den Mixer-Slots ---------- */
 const FX={
@@ -1019,11 +1019,11 @@ async function padDown(c,i,e){
   const pid=lastPid;await resume();flash(e);
   if(mode==='note'){note=SCALE[i%8]+12*Math.floor(i/8);const t=tr(sel);if(t){if(holdable(t))holdVoice(t,note,pid);else trigger(t,ctx.currentTime,note);record(sel,note)}drawPads();return}
   const t=tr(c.ids[i]);if(!t)return;
-  if(mode==='mute'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();save();return}
-  if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
+  if(mode==='mute'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime,true);drawPads();save();return}
+  if(mode==='hold'){t.mute=true;choke(t.id,ctx.currentTime,true);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=false;drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
   const act=(c.acts&&c.acts[i])||'play';
-  if(act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);drawPads();drawRack();save();return}
-  if(act==='holdm'||act==='holdo'){const on=act==='holdm';t.mute=on;if(on)choke(t.id,ctx.currentTime);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=!on;if(!on)choke(t.id,ctx.currentTime);drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
+  if(act==='toggle'){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime,true);drawPads();drawRack();save();return}
+  if(act==='holdm'||act==='holdo'){const on=act==='holdm';t.mute=on;if(on)choke(t.id,ctx.currentTime,true);drawPads();const u=ev=>{if(ev.pointerId!==pid)return;t.mute=!on;if(!on)choke(t.id,ctx.currentTime,true);drawPads();window.removeEventListener('pointerup',u);window.removeEventListener('pointercancel',u)};window.addEventListener('pointerup',u);window.addEventListener('pointercancel',u);return}
   const ch=sel!==t.id;sel=t.id;if(holdable(t))holdVoice(t,0,pid);else trigger(t,ctx.currentTime,0);record(t.id,0);if(ch){drawPads();drawSteps()}
 }
 function setMode(m){mode=m;$$('.seg').forEach(b=>b.classList.toggle('on',b.dataset.m===m));drawPads()}
