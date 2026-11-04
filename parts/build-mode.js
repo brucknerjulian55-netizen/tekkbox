@@ -96,6 +96,8 @@ function saveSheet(){
 }
 const libItems=()=>CATS.includes(folder)?GALLERY.filter(g=>g.cat===folder).map((g,i)=>({gal:GALLERY.indexOf(g),name:g.name,patch:g.patch})):LIB.items.filter(i=>i.folder===folder);
 async function itemBuf(it){await resume();if(it.gal!=null){if(!galCache[it.gal])galCache[it.gal]=await renderPatch(it.patch);return galCache[it.gal]}const ab=await idbGet('L'+it.id);return ctx.decodeAudioData(ab.slice(0))}
+async function libAdd(ab,name,fol){const nm=name.slice(0,24);if(LIB.items.some(i=>i.name===nm&&i.size===ab.byteLength))return;if(!LIB.folders.includes(fol))LIB.folders.push(fol);const id=LIB.next++;await idbSet('L'+id,ab);LIB.items.push({id,name:nm,folder:fol,size:ab.byteLength});await saveLib();if(view==='bv')drawBuild()}
+function ensureFolders(){['Fertige Kicks','Vocals'].forEach(f=>{if(!LIB.folders.includes(f))LIB.folders.push(f)})}
 function soundPicker(title,onPick,onBack){
   let f=CATS.includes(folder)||LIB.folders.includes(folder)?folder:CATS[0];
   const list=()=>CATS.includes(f)?GALLERY.filter(g=>g.cat===f).map(g=>({gal:GALLERY.indexOf(g),name:g.name,patch:g.patch})):LIB.items.filter(i=>i.folder===f);
@@ -105,7 +107,7 @@ function soundPicker(title,onPick,onBack){
     $$('#sheet [data-f]').forEach(b=>b.onclick=()=>{f=b.dataset.f;draw()});
     $$('#sheet [data-pl]').forEach(b=>b.onclick=async()=>previewBuf(await itemBuf(list()[+b.dataset.pl])));
     $$('#sheet [data-t]').forEach(b=>b.onclick=async()=>{const it=list()[+b.dataset.t];onPick(await itemBuf(it),it.name)});
-    $('#pkF').onclick=()=>{filePick=async file=>{await resume();try{const ab=await file.arrayBuffer();onPick(await ctx.decodeAudioData(ab.slice(0)),file.name.replace(/\.[^.]+$/,''))}catch(e){toast('Diese Datei lässt sich nicht lesen. Probiere WAV oder MP3.')}};$('#file').click()};
+    $('#pkF').onclick=()=>{filePick=async file=>{await resume();try{const ab=await file.arrayBuffer(),bf=await ctx.decodeAudioData(ab.slice(0)),nm=file.name.replace(/\.[^.]+$/,'');await libAdd(ab,nm,LIB.folders.includes(f)?f:'Importiert');onPick(bf,nm)}catch(e){toast('Diese Datei lässt sich nicht lesen. Probiere WAV oder MP3.')}};$('#file').click()};
     $('#pkB').onclick=()=>onBack?onBack():closeSheet()};
   resume().then(draw);
 }

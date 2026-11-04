@@ -22,7 +22,7 @@ function defaultState(){
   put(c,3,O);put(c,2,C);put(c,6,[0,8]);put(d,0,K);put(d,1,O);put(d,4,[8,10,12,13,14,15]);put(d,7,[0]);
   return{v:2,bpm:175,cur:0,nextId:9,songMode:false,patterns:[a,b,c,d],tracks:[0,1,2,3,4,5,8,6,7].map(i=>{const t=mkTrack(i,DEF[i]);if(i===8)t.syn={wave:'sawtooth'};return t}),
     groups:['Drums','Bass','Melodie','FX'],song:[],live:[],
-    slots:[mkSlot('Master'),mkSlot('Kick'),mkSlot('Bass'),mkSlot('Drums'),mkSlot('Melodie'),mkSlot('FX'),mkSlot('Slot 6'),mkSlot('Slot 7'),mkSlot('Slot 8')]};
+    slots:[mkSlot('Master'),mkSlot('Kick'),mkSlot('Bass'),mkSlot('Drums'),mkSlot('Melodie'),mkSlot('FX'),mkSlot('Fertige Kicks'),mkSlot('Vocals'),mkSlot('Slot 8')]};
 }
 function migrate(d){            /* Projekte aus Version 1 */
   if(d.v===2){if(!d.live)d.live=[];d.binds=d.binds||[];return d}
@@ -136,6 +136,8 @@ const B=(t,f,g,q=1)=>({t,f,g,q}),EQP={
  Stabs:[B('highpass',200,0,.7),B('peaking',450,-3,1.5),B('peaking',2500,3,1),B('highshelf',9000,2,1)],
  Melodie:[B('highpass',150,0,.7),B('peaking',350,-2,1.4),B('peaking',3000,3,1),B('highshelf',10000,1.5,1)],
  Master:[B('highpass',25,0,.7),B('peaking',60,1,1),B('peaking',300,-1,1),B('highshelf',11000,1.5,1)],
+ 'Fertige Kick':[B('highpass',22,0,.7),B('peaking',70,0,1),B('peaking',300,0,1),B('highshelf',9000,0,1)],
+ Vocals:[B('highpass',120,0,.7),B('peaking',320,-3,1.4),B('peaking',3200,3,1),B('highshelf',11000,2.5,1)],
  Neutral:[B('lowshelf',70,0),B('peaking',400,0),B('peaking',2500,0),B('highshelf',9000,0)]},EQT=[['highpass','Hochpass'],['lowshelf','Low-Shelf'],['peaking','Bell'],['highshelf','High-Shelf'],['lowpass','Tiefpass']];
 const WSP={Linear:x=>x,Weich:x=>Math.tanh(x*2.2)/Math.tanh(2.2),Hart:x=>Math.max(-.55,Math.min(.55,x*1.6))/.55,Faltung:x=>Math.sin(x*Math.PI*1.5),Stufen:x=>Math.round(x*4)/4,Kurve:x=>Math.sign(x)*x*x};
 const GATEP={'Aus':[()=>1,()=>0],'Halftime':[()=>1,i=>i/2],'Gate 1/8':[i=>i%4<2?1:0,()=>0],'Gate 1/16':[i=>i%2?0:1,()=>0],'Pumpen':[i=>[.15,.5,.85,1][i%4],()=>0],'Stutter':[()=>1,i=>i%2],'Tape-Stop':[i=>1-i/18,i=>i*i/30],'Trance':[i=>[1,0,1,1,0,1,1,0,1,0,1,1,0,1,0,1][i],()=>0]};
@@ -252,8 +254,9 @@ const FILLS={
  Hats:[['Offbeat, 2 nach der Kick',i=>i%4===2],['Jedes 2. Feld',i=>i%2===0],['Jedes Feld',()=>true],['Offbeat mit Extra',i=>i%4===2||i%8===7]],
  Bass:[['Offbeat, 2 nach der Kick',i=>i%4===2],['Rollend, 3 nach der Kick',i=>i%4!==0],['Galopp',i=>i%4>=2]],
  Stabs:[['Offbeat, 2 nach der Kick',i=>i%4===2],['Hardtekk-Rhythmus',i=>[0,3,6,8,11,14].includes(i%16)],['Jeder Beat',i=>i%4===0],['Jedes 8. Feld',i=>i%8===0]],
+ Vocals:[['Am Taktanfang',i=>i%16===0],['Jeder 2. Takt',i=>i%32===0],['Jedes 8. Feld (ab Feld 5)',i=>i%8===4]],
  Melodie:[['Hymne',[[0,0,2],[2,0,1],[3,3,2],[6,0,1],[8,7,3],[11,5,1],[12,3,2],[14,2,2]]],['Aufsteigend',[0,3,5,7,8,7,5,3].map((n,i)=>[i*2,n,2])],['Arpeggio',[...Array(16)].map((_,i)=>[i,[0,3,7,12][i%4],1])],['Offbeat-Riff',[[2,0,2],[6,0,2],[10,3,2],[14,-2,2]]],['Treppe runter',[12,10,8,7,5,3,2,0].map((n,i)=>[i*2,n,2])]]};
-function fillCat(t){const n=(t.name+' '+(t.sample||'')+' '+t.src).toLowerCase();return /kick/.test(n)?'Kick':/snare|clap/.test(n)?'Snare und Clap':/hat|shaker/.test(n)?'Hats':/bass|reese|sub/.test(n)?'Bass':/stab|hoover/.test(n)?'Stabs':/lead|pluck|melod/.test(n)?'Melodie':'Stabs'}
+function fillCat(t){const n=(t.name+' '+(t.sample||'')+' '+t.src).toLowerCase();return /vocal|vox|voice/.test(n)?'Vocals':/kick/.test(n)?'Kick':/snare|clap/.test(n)?'Snare und Clap':/hat|shaker/.test(n)?'Hats':/bass|reese|sub/.test(n)?'Bass':/stab|hoover/.test(n)?'Stabs':/lead|pluck|melod/.test(n)?'Melodie':'Stabs'}
 function fillSheet(){
   const t=tr(sel),c=fillCat(t),cats=[c,...Object.keys(FILLS).filter(k=>k!==c)];
   openSheet(`<h2>Muster für ${esc(t.name)}</h2><p>Füllt den Kanal im aktuellen Pattern aus. Vorhandene Noten dieses Kanals werden ersetzt.</p>
@@ -578,10 +581,11 @@ function menuSheet(){
   $('#mN').onclick=()=>{openSheet(`<h2>Neu anfangen?</h2><p>Alle Pattern und geladenen Samples werden aus der App gelöscht. Sichere dein Projekt vorher als Datei, wenn du es behalten willst.</p><div class="row"><button class="act" id="nY">Alles löschen</button><button class="act alt" id="nN">Abbrechen</button></div>`);
     $('#nN').onclick=menuSheet;$('#nY').onclick=async()=>{for(const t of S.tracks){await idbDel('s'+t.id);delete buffers[t.id]}S=defaultState();sel=0;groupF=null;applyState();save();closeSheet();toast('Neues Projekt gestartet')}};
 }
+function ensureCats(){ensureFolders();const r=[[6,'Slot 6','Fertige Kicks'],[7,'Slot 7','Vocals']];r.forEach(([i,o,n])=>{if(S.slots[i]&&S.slots[i].name===o)S.slots[i].name=n});['Fertige Kicks','Vocals'].forEach(g=>{if(!S.groups.includes(g))S.groups.push(g)})}
 function fixIds(){const seen=new Set();let mx=-1;S.tracks.forEach(t=>{if(Number.isFinite(t.id))mx=Math.max(mx,t.id)});
   S.tracks.forEach(t=>{if(Number.isFinite(t.id)&&!seen.has(t.id)){seen.add(t.id);return}const o=t.id,n=++mx;S.patterns.forEach(p=>{if(p.n[o])p.n[n]=JSON.parse(JSON.stringify(p.n[o]))});t.id=n;seen.add(n);
     if(buffers[o])buffers[n]=buffers[o];idbGet('s'+o).then(f=>{if(f)idbSet('s'+n,f)});wireTrack(t)});S.nextId=mx+1}
-function applyState(){fixIds();if(ctx){S.slots.forEach((_,i)=>{if(!slotN[i])makeSlot(i)});S.slots.forEach((_,i)=>rebuildSlot(i));S.tracks.forEach(wireTrack)}$('#bpm').textContent=S.bpm;queued=null;if(!tr(sel))sel=S.tracks[0].id;drawAll()}
+function applyState(){fixIds();ensureCats();if(ctx){S.slots.forEach((_,i)=>{if(!slotN[i])makeSlot(i)});S.slots.forEach((_,i)=>rebuildSlot(i));S.tracks.forEach(wireTrack)}$('#bpm').textContent=S.bpm;queued=null;if(!tr(sel))sel=S.tracks[0].id;drawAll()}
 function refreshGrid(){drawSteps();if(view==='rv'){drawRack()}if(view==='ov')drawPiano()}
 function drawAll(){ensureFxIds();drawLive();drawPatBar();drawSteps();drawPads();drawGroups();drawRack();prSelect();drawPiano();drawSong();drawMixer()}
 function drawPlayhead(){
@@ -623,7 +627,7 @@ async function importProject(file){
     for(const k of Object.keys(d.samples||{})){const ab=unb64(d.samples[k]);await idbSet('s'+k,ab);buffers[k]=await ctx.decodeAudioData(ab.slice(0))}applyState();save();closeSheet();toast('Projekt geöffnet')}
   catch(e){toast(file.size===0?'Diese Datei ist leer (0 KB). Sie stammt von der alten Speicherfunktion.':'Diese Datei ist kein Tekkbox-Projekt.')}}
 async function loadSample(file){await resume();
-  try{const ab=await file.arrayBuffer(),buf=await ctx.decodeAudioData(ab.slice(0)),t=tr(loadTrack);buffers[t.id]=buf;t.sample=file.name.replace(/\.[^.]+$/,'');await idbSet('s'+t.id,ab);drawAll();save();sel=t.id;trigger(t,ctx.currentTime,0);channelSheet();toast('Sample geladen')}
+  try{const ab=await file.arrayBuffer(),buf=await ctx.decodeAudioData(ab.slice(0)),t=tr(loadTrack);buffers[t.id]=buf;t.sample=file.name.replace(/\.[^.]+$/,'');await idbSet('s'+t.id,ab);await libAdd(ab,t.sample,'Importiert');drawAll();save();sel=t.id;trigger(t,ctx.currentTime,0);channelSheet();toast('Sample geladen und in Sounds gespeichert')}
   catch(e){toast('Diese Datei lässt sich nicht lesen. Probiere WAV oder MP3.')}}
 
 /* ---------- Verdrahtung ---------- */

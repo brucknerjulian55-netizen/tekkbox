@@ -32,7 +32,7 @@ function liveDown(c){const tg=c.target,a=tg.split(':');
     else{if(holdable(t))holdVoice(t,0);else trigger(t,ctx.currentTime,0);record(t.id,0)}}
   else if(a[0]==='mute'){const t=tr(+a[1]);if(t){t.mute=!t.mute;if(t.mute)choke(t.id,ctx.currentTime);liveMark();drawPads();drawRack();save()}}
   else if(a[0]==='pat'){if(S.patterns[+a[1]])goPat(+a[1])}
-  else if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);if(h){h.f.on=!h.f.on;rebuildSlot(h.i);liveMark();save()}}
+  else if(a[0]==='bindon'){const b=S.binds.find(x=>x.id===+a[1]),h=b&&fxBy(b.fid);if(h){const on=!h.f.on;[b.fid,...(b.links||[])].forEach(id=>{const x=fxBy(id);if(x){x.f.on=on;rebuildSlot(x.i)}});liveMark();save()}}
   else if(a[0]==='roll')roll=+a[1];
   else if(tg==='echo')echoIn.gain.setTargetAtTime(.8,ctx.currentTime,.01);
   else if(tg==='play')togglePlay();
@@ -201,7 +201,7 @@ function fxParams(f){const D=FX[f.t],r=(D.s||[]).map(s=>({path:s[0],name:s[1],mi
 let bindQ=new Set(),bindRaf=0;
 function bindApply(n){bindQ.add(n);if(!bindRaf)bindRaf=requestAnimationFrame(()=>{bindRaf=0;bindQ.forEach(x=>{try{x.set()}catch(e){}});bindQ.clear()})}
 function bindRef(b){
-  if(b.kind==='fx'){const h=fxBy(b.fid);if(!h)return null;return{get:()=>pGet(h.f.p,b.path),set:v=>{pSet(h.f.p,b.path,v);const n=fxNode(h.i,h.k);if(n)bindApply(n);save()}}}
+  if(b.kind==='fx'){const h=fxBy(b.fid);if(!h)return null;return{get:()=>pGet(h.f.p,b.path),set:v=>{[b.fid,...(b.links||[])].forEach(id=>{const x=fxBy(id);if(!x)return;pSet(x.f.p,b.path,v);const n=fxNode(x.i,x.k);if(n)bindApply(n)});save()}}}
   if(b.kind==='svol'){const s=S.slots[b.slot];return s&&{get:()=>s.vol,set:v=>{s.vol=v;slotVol(b.slot);save()}}}
   const t=tr(b.tid);if(!t)return null;
   if(b.kind==='tvol')return{get:()=>t.vol,set:v=>{t.vol=v;wireTrack(t);save()}};
@@ -219,9 +219,10 @@ function bindSheet(d,back){
   <label><span>Minimum: <span id="bMn">${fmtV(d,b.min)}</span></span><input id="bMi" type="range" min="0" max="1000" value="${pos(b.min)}" data-def="0"></label>
   <label><span>Maximum: <span id="bMx">${fmtV(d,b.max)}</span></span><input id="bMa" type="range" min="0" max="1000" value="${pos(b.max)}" data-def="1000"></label>
   <p>Der Regler im Live-Tab bleibt immer zwischen diesen beiden Werten.</p>
-  <div class="row"><button class="act" id="bS">${isNew?'Binden':'Speichern'}</button><button class="act alt" id="bK">Binden und Knob anlegen</button>${isNew?'':'<button class="act alt full" id="bX">Bindung entfernen</button>'}<button class="act alt full" id="bB">Zurück</button></div>`);
+  ${isNew||d.kind!=='fx'?'':'<div class="row"><button class="act alt full" id="bLn">Auch auf andere Slots legen</button></div>'}<div class="row"><button class="act" id="bS">${isNew?'Binden':'Speichern'}</button><button class="act alt" id="bK">Binden und Knob anlegen</button>${isNew?'':'<button class="act alt full" id="bX">Bindung entfernen</button>'}<button class="act alt full" id="bB">Zurück</button></div>`);
   let mn=b.min,mx=b.max;$('#bMi').oninput=e=>{mn=val(+e.target.value);$('#bMn').textContent=fmtV(d,mn)};$('#bMa').oninput=e=>{mx=val(+e.target.value);$('#bMx').textContent=fmtV(d,mx)};
   const commit=()=>{b.min=mn;b.max=mx;if(isNew)S.binds.push(b);const r=bindRef(b);if(r){const v=r.get(),l=Math.min(mn,mx),h=Math.max(mn,mx);if(v<l)r.set(l);if(v>h)r.set(h)}save()};
+  if($('#bLn'))$('#bLn').onclick=()=>bindLinkSheet(b,back);
   $('#bS').onclick=()=>{commit();toast('Gebunden. Im Live-Tab unter + Bindung');back()};
   $('#bK').onclick=()=>{commit();const c=lv('knob',38,38,24,16,'bind:'+b.id,'#b14dff');c.label=d.short||'';fitNew(c);S.live.push(c);save();toast('Knob liegt im Live-Tab');back()};
   if(!isNew)$('#bX').onclick=()=>{S.binds=S.binds.filter(x=>x!==b);S.live=S.live.filter(c=>c.target!=='bind:'+b.id);save();back()};$('#bB').onclick=back;
@@ -234,9 +235,19 @@ function wireChips(f,i,k){const ps=fxParams(f),sN=S.slots[i].name,D=FX[f.t];
   $('#bOn').onclick=()=>{const h=S.binds.find(b=>b.fid===f.id&&b.kind==='on');if(h){S.binds=S.binds.filter(b=>b!==h);S.live=S.live.filter(c=>c.target!=='bindon:'+h.id);toast('Bindung entfernt')}else{S.binds.push({id:uid(),kind:'on',fid:f.id,label:`${sN}, ${D.name}: An und Aus`});toast('Gebunden. Im Live-Tab unter + Bindung')}save();fxSheet(i,S.slots[i].fx.indexOf(f))}}
 function bindPick(){const L=(S.binds||[]).filter(b=>b.kind==='on'?fxBy(b.fid):bindRef(b));
   openSheet(`<h2>Bindungen</h2>${L.length?'<p>Tippe auf eine Art, um die Bindung auf die Fläche zu legen.</p>':'<p>Noch nichts gebunden. Öffne im Mixer einen Effekt und wähle unter Live binden die Werte aus.</p>'}
-  ${L.map(b=>`<div class="bnR"><b>${esc(b.label)}</b>${b.kind==='on'?`<button class="chip" data-a="${b.id}" data-t="btn">Knopf</button>`:`<span>${fmtV(b,b.min)} bis ${fmtV(b,b.max)}</span><button class="chip" data-a="${b.id}" data-t="knob">Knob</button><button class="chip" data-a="${b.id}" data-t="slider">Slider</button>`}</div>`).join('')}
+  ${L.map(b=>`<div class="bnR"><b>${esc(b.label)}</b>${b.kind==='on'?`<button class="chip" data-a="${b.id}" data-t="btn">Knopf</button><button class="chip" data-lk="${b.id}">Slots${(b.links||[]).length?' +'+b.links.length:''}</button>`:`<span>${fmtV(b,b.min)} bis ${fmtV(b,b.max)}</span><button class="chip" data-a="${b.id}" data-t="knob">Knob</button><button class="chip" data-a="${b.id}" data-t="slider">Slider</button>${b.kind==='fx'?`<button class="chip" data-lk="${b.id}">Slots${(b.links||[]).length?' +'+b.links.length:''}</button>`:''}`}</div>`).join('')}
   <div class="row"><button class="act full" id="sC">Fertig</button></div>`);$('#sC').onclick=closeSheet;
+  $$('#sheet [data-lk]').forEach(e=>e.onclick=()=>bindLinkSheet(S.binds.find(x=>x.id===+e.dataset.lk),bindPick));
   $$('#sheet [data-a]').forEach(e=>e.onclick=()=>{const id=+e.dataset.a,b=S.binds.find(x=>x.id===id),ty=e.dataset.t,C={btn:[24,16],knob:[24,16],slider:[60,12]}[ty],c=lv(ty,38,40,C[0],C[1],(b.kind==='on'?'bindon:':'bind:')+id,ty==='slider'?'#22e6ff':'#b14dff');if(ty==='slider')c.dir='h';c.label=(b.short||b.label.split(': ').pop()).slice(0,18);fitNew(c);S.live.push(c);drawLive();save();closeSheet()})}
+function bindLinkSheet(b,back){const h=fxBy(b.fid);if(!h)return back();const T=h.f.t,D=FX[T];b.links=(b.links||[]).filter(fxBy);
+  openSheet(`<h2>Auf andere Slots legen</h2><p>${esc(b.label)}. Der Regler steuert alle verbundenen Slots gemeinsam. Hat ein Slot den Effekt ${D.name} noch nicht, wird er mit deinen Einstellungen dorthin kopiert.</p>
+  ${S.slots.map((s,i)=>{if(i===h.i)return'';const l=b.links.map(fxBy).find(x=>x&&x.i===i);return `<div class="bnR" style="grid-template-columns:minmax(0,1fr) auto auto"><b style="grid-column:auto">${i?i+': ':''}${esc(s.name)}</b>${l?`<button class="chip" data-c="${l.f.id}">Einstellungen übernehmen</button><button class="chip on" data-u="${l.f.id}">Verbunden</button>`:`<button class="chip" data-l="${i}">Verbinden</button>`}</div>`}).join('')}
+  <div class="row"><button class="act full" id="sC">Fertig</button></div>`);
+  const clone=()=>JSON.parse(JSON.stringify(h.f.p));
+  $$('#sheet [data-l]').forEach(e=>e.onclick=async()=>{await resume();const i=+e.dataset.l;let f=S.slots[i].fx.find(x=>x.t===T&&!b.links.includes(x.id));if(!f){if(S.slots[i].fx.length>=6)return toast('Dieser Slot hat schon 6 Effekte.');f={id:uid(),t:T,on:h.f.on,p:clone()};S.slots[i].fx.push(f);rebuildSlot(i)}b.links.push(f.id);drawMixer();save();bindLinkSheet(b,back)});
+  $$('#sheet [data-u]').forEach(e=>e.onclick=()=>{b.links=b.links.filter(x=>x!==+e.dataset.u);save();bindLinkSheet(b,back)});
+  $$('#sheet [data-c]').forEach(e=>e.onclick=()=>{const x=fxBy(+e.dataset.c);if(x){x.f.p=clone();rebuildSlot(x.i);save();toast('Einstellungen übernommen')}});
+  $('#sC').onclick=back}
 /* ---------- Leistung ---------- */
 const PERF={late:0,fps:0,fr:0,t:0,long:0};
 function perfTick(now){PERF.fr++;if(now-PERF.t>=1000){PERF.fps=PERF.fr;PERF.fr=0;PERF.t=now}}
